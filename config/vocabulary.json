@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "scope_notice": "Candidate isolated-sign vocabulary. Every exact sign form must be checked by a fluent signer before public claims are made.",
+  "languages": {
+    "asl": {
+      "name": "ASL → English",
+      "short_name": "ASL",
+      "output_language": "English",
+      "locale": "en-US",
+      "direction": "ltr",
+      "reference_name": "ASL Signbank and ASL Citizen",
+      "reference_url": "https://aslsignbank.com/signs/search/",
+      "signs": [
+        {"id": "hello", "gloss": "HELLO", "output": "Hello", "reference_url": "https://aslsignbank.com/dictionary/gloss/482.html"},
+        {"id": "help", "gloss": "HELPstr", "output": "Help", "reference_url": "https://aslsignbank.com/dictionary/gloss/483.html"},
+        {"id": "water", "gloss": "WATER", "output": "Water", "reference_url": "https://aslsignbank.com/dictionary/gloss/1414.html"},
+        {"id": "again", "gloss": "AGAIN", "output": "Again", "reference_url": "https://aslsignbank.com/dictionary/gloss/400.html"}
+      ]
+    },
+    "emirati": {
+      "name": "Emirati Sign Language → العربية",
+      "short_name": "Emirati Sign Language",
+      "output_language": "Arabic",
+      "locale": "ar-AE",
+      "direction": "rtl",
+      "reference_name": "UAE Sign Language Dictionary",
+      "reference_url": "https://za.gov.ae/Sign-Language-Dictionary/UAE-Sign-Language-Categories",
+      "signs": [
+        {"id": "drink", "gloss": "يشرب", "output": "يشرب", "reference_url": "https://player.vimeo.com/external/267523765.sd.mp4?s=32f675dc816c806417062d44988ae0497661a4cc&profile_id=164"},
+        {"id": "help", "gloss": "يساعد", "output": "يساعد", "reference_url": "https://player.vimeo.com/external/267522977.sd.mp4?s=0035b83113ea3c322a6249d185815bf033b06652&profile_id=164"},
+        {"id": "wait", "gloss": "انتظار", "output": "انتظار", "reference_url": "https://player.vimeo.com/external/267529395.sd.mp4?s=4ec61229ebee3c908e7f467d34a73a0f9ee1be2c&profile%20id=164"},
+        {"id": "repeat", "gloss": "إعادة", "output": "إعادة", "reference_url": "https://player.vimeo.com/external/267540625.sd.mp4?s=3ec7a12947563c06fb00915ab24402d1c712f08b&profile_id=164"}
+      ]
+    }
+  }
+}
+
