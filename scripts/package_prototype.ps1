@@ -9,7 +9,9 @@ New-Item -ItemType Directory -Path $stage -Force | Out-Null
 
 $topFiles = @(
     ".gitignore",
+    "Start SignBridge.vbs",
     "app.py",
+    "diagnose_signbridge.bat",
     "README.md",
     "requirements.txt",
     "run_tests.bat",

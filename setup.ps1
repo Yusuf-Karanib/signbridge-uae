@@ -22,5 +22,5 @@ if (-not (Test-Path -LiteralPath ".venv\Scripts\python.exe")) {
 & ".\.venv\Scripts\python.exe" scripts\download_model.py
 
 Write-Host ""
-Write-Host "Setup complete. Double-click start_signbridge.bat to open SignBridge."
+Write-Host "Setup complete. Double-click 'Start SignBridge.vbs' to open SignBridge without a terminal window."
 

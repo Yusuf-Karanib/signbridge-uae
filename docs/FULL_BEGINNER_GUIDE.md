@@ -242,7 +242,9 @@ The camera preview expands with the available area while keeping the video propo
 In the current project folder:
 
 1. Run `setup.ps1` once. This creates the private Python environment, installs the required software and downloads the official MediaPipe models if either is missing.
-2. Double-click `start_signbridge.bat` whenever you want to use the app.
+2. Double-click `Start SignBridge.vbs` whenever you want to use the app. It uses the windowed version of Python, so no PowerShell or terminal window remains open.
+
+PowerShell is needed only for the one-time `setup.ps1` step. If the normal launcher fails, run `diagnose_signbridge.bat`; its terminal stays visible so you can read the error. Unexpected startup failures are also saved in `outputs/startup.log`.
 
 The ZIP file is a package, not an executable application. Extract it first, run setup once, then use the launcher.
 
@@ -437,7 +439,9 @@ Landmarks are less revealing than video but should still be treated as potential
 
 | Location | Purpose |
 | --- | --- |
-| `app.py` | Starts the desktop application |
+| `app.py` | Starts the desktop application and records unexpected startup errors |
+| `Start SignBridge.vbs` | Normal launcher; opens only the app with no terminal window |
+| `diagnose_signbridge.bat` | Troubleshooting launcher that keeps technical errors visible |
 | `signbridge/ui.py` | Builds the window and connects all buttons and workflows |
 | `signbridge/camera.py` | Opens the webcam, runs MediaPipe and controls capture timing |
 | `signbridge/computer_control.py` | Sends the explicitly enabled Windows volume, slide, pointer and click commands |
@@ -531,7 +535,7 @@ Install a compatible Arabic text-to-speech voice in Windows and restart the app.
 
 ### The ZIP does not start
 
-Extract it, run `setup.ps1` once, then double-click `start_signbridge.bat`.
+Extract it, run `setup.ps1` once, then double-click `Start SignBridge.vbs`. If that fails, check `outputs/startup.log` or run `diagnose_signbridge.bat`.
 
 ## 20. A simple event explanation
 

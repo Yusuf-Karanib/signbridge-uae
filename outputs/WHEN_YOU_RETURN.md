@@ -8,7 +8,7 @@ It is not trained yet. Codex cannot honestly create that missing human data.
 
 ## Your next actions
 
-1. Start the app with `start_signbridge.bat`.
+1. Start the app with `Start SignBridge.vbs`; it does not keep PowerShell open.
 2. Ask fluent signers to check all 8 linked sign forms.
 3. If you are the demonstrator, record 20 to 30 varied attempts per class. Add other training people if available.
 4. Train both models.

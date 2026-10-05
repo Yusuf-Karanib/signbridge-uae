@@ -1,6 +1,6 @@
 # SignBridge quick start
 
-1. Double-click `start_signbridge.bat` in the project folder.
+1. Double-click `Start SignBridge.vbs` in the project folder. PowerShell is needed only for the first `setup.ps1` run.
 2. Open **Train model**.
 3. Open each exact source link and have a fluent signer check the form.
 4. For a personalized demo, record 20 to 30 varied examples for every class from the demonstrator.
@@ -18,4 +18,6 @@ Speech is manual by default. Check the text, then press **Speak result**. Automa
 Before the event, get every sign you keep checked by fluent signers. Sixty recordings from one person do not prove unseen-person accuracy.
 
 This prototype recognizes isolated signs. It does not translate full conversations.
+
+If the window does not open, run `diagnose_signbridge.bat` and read the visible error, or open `outputs/startup.log`.
 

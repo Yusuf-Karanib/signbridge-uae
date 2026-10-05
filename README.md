@@ -12,8 +12,8 @@ testing, files and event demonstration, read `docs/FULL_BEGINNER_GUIDE.md`.
 
 ## Start it
 
-1. Run `setup.ps1` once.
-2. Double-click `start_signbridge.bat`.
+1. Run `setup.ps1` once. PowerShell is needed only for this setup step.
+2. Double-click `Start SignBridge.vbs`. It opens the app without a terminal window.
 3. Open **Train model**.
 4. Choose a language and enter a short Person ID.
 5. For a personalized demo, record 20 to 30 varied examples per class from the demonstrator. For unseen-person testing, use several training people and keep different people for Final test.
@@ -23,6 +23,10 @@ testing, files and event demonstration, read `docs/FULL_BEGINNER_GUIDE.md`.
 
 The camera panel shows live FPS. If the default webcam is wrong or busy, choose
 camera 1 or 2 and press **Restart**; saved samples and models are unaffected.
+
+If the normal launcher does not open the window, run `diagnose_signbridge.bat`.
+That troubleshooting launcher deliberately keeps a terminal visible. Unexpected
+startup errors are also written to `outputs/startup.log`.
 
 The **Computer control** tab is a separate experiment. It uses Google's generic
 hand gestures to control volume, slides or the mouse. It is not sign-language
