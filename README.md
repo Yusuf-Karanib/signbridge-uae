@@ -9,6 +9,8 @@ It recognizes one prompted sign at a time. It is not a full sign-language transl
 
 For a complete beginner-friendly explanation of the idea, design, screens, training,
 testing, files and event demonstration, read `docs/FULL_BEGINNER_GUIDE.md`.
+For the exact camera, slide, volume and mouse controls in the current version,
+read `docs/CONTROL_GUIDE.md`.
 
 ## Start it
 

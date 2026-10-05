@@ -1,5 +1,7 @@
 # SignBridge quick start
 
+The full current control instructions are in `docs/CONTROL_GUIDE.md`.
+
 1. Double-click `Start SignBridge.vbs` in the project folder. PowerShell is needed only for the first `setup.ps1` run.
 2. Open **Train model**.
 3. Open each exact source link and have a fluent signer check the form.

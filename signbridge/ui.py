@@ -78,6 +78,16 @@ QLabel#title {
 QLabel#subtitle, QLabel#muted {
     color: #9fb1c5;
 }
+QLabel#cameraPerformance {
+    color: #9fb1c5;
+    padding: 7px 9px;
+    border-radius: 8px;
+}
+QLabel#cameraPerformance[warning="true"] {
+    background: #2a2210;
+    color: #f5d98d;
+    border: 1px solid #584719;
+}
 QLabel#cameraState {
     color: #dbe8f6;
     background: #0b1725;
@@ -275,6 +285,7 @@ class MainWindow(QMainWindow):
         self.control_armed_until = 0.0
         self.control_votes: deque[str | None] = deque(maxlen=7)
         self.control_cursor_position: tuple[float, float] | None = None
+        self.control_hand_anchor: tuple[float, float] | None = None
         self.control_pinching = False
         self.control_last_click = 0.0
         self.control_last_actions: dict[str, float] = {}
@@ -347,11 +358,13 @@ class MainWindow(QMainWindow):
         camera_header.addWidget(camera_number_label)
         self.camera_selector = QComboBox()
         self.camera_selector.setToolTip(
-            "If the wrong camera opens, choose another number and press Restart"
+            "These numbers select different camera devices; they are not quality levels"
         )
-        for camera_index in range(3):
-            self.camera_selector.addItem(str(camera_index), camera_index)
-        self.camera_selector.setMaximumWidth(64)
+        self.camera_selector.addItem("0 — default camera", 0)
+        self.camera_selector.addItem("1 — second camera", 1)
+        self.camera_selector.addItem("2 — third camera", 2)
+        self.camera_selector.setMinimumWidth(155)
+        self.camera_selector.setMaximumWidth(190)
         camera_header.addWidget(self.camera_selector)
         self.restart_camera_button = QPushButton("Restart")
         self.restart_camera_button.setToolTip(
@@ -360,7 +373,9 @@ class MainWindow(QMainWindow):
         self.restart_camera_button.setMaximumWidth(100)
         camera_header.addWidget(self.restart_camera_button)
         camera_layout.addLayout(camera_header)
-        camera_hint = QLabel("Keep your head, shoulders and both hands inside the frame.")
+        camera_hint = QLabel(
+            "Use camera 0 unless it shows the wrong device. Keep your head, shoulders and both hands inside the frame."
+        )
         camera_hint.setObjectName("sectionHint")
         camera_layout.addWidget(camera_hint)
         self.camera_preview = QLabel("Camera preview will appear here")
@@ -374,7 +389,8 @@ class MainWindow(QMainWindow):
         )
         camera_layout.addWidget(self.camera_preview, 1)
         self.camera_performance_label = QLabel("Starting camera…")
-        self.camera_performance_label.setObjectName("muted")
+        self.camera_performance_label.setObjectName("cameraPerformance")
+        self.camera_performance_label.setProperty("warning", False)
         self.camera_performance_label.setWordWrap(True)
         camera_layout.addWidget(self.camera_performance_label)
         camera_bottom = QHBoxLayout()
@@ -1097,13 +1113,14 @@ class MainWindow(QMainWindow):
     def _refresh_control_mode_help(self) -> None:
         if str(self.control_mode.currentData()) == "mouse":
             text = (
-                "Move: guide the pointer with your index fingertip. "
-                "Click: touch your thumb and index fingertip together."
+                "Move: hold one index finger pointing up, then move slowly. "
+                "Lower the finger to pause and reposition your hand. "
+                "Click: while pointing, touch thumb and index fingertip together."
             )
         else:
             text = (
                 "Thumb up/down: volume. Victory: next slide. "
-                "Pointing up: previous slide."
+                "Pointing up: previous slide. Release the gesture fully before the next command."
             )
         self.control_mode_help.setText(text)
 
@@ -1146,6 +1163,7 @@ class MainWindow(QMainWindow):
         self.control_votes.clear()
         self.control_previous_gesture = None
         self.control_cursor_position = None
+        self.control_hand_anchor = None
         self.control_pinching = False
         self._refresh_control_ui()
 
@@ -1158,6 +1176,7 @@ class MainWindow(QMainWindow):
         self.control_votes.clear()
         self.control_previous_gesture = None
         self.control_cursor_position = None
+        self.control_hand_anchor = None
         self.control_pinching = False
         self._refresh_control_ui()
         if was_enabled and reason:
@@ -1171,6 +1190,7 @@ class MainWindow(QMainWindow):
         self._refresh_control_mode_help()
         self.control_votes.clear()
         self.control_cursor_position = None
+        self.control_hand_anchor = None
         self.control_pinching = False
         if self.control_enabled:
             self.control_armed = False
@@ -1203,6 +1223,9 @@ class MainWindow(QMainWindow):
             self.control_armed = False
             self.control_palm_started = None
             self.control_previous_gesture = None
+            self.control_hand_anchor = None
+            self.control_cursor_position = None
+            self.control_pinching = False
             self._refresh_control_ui()
 
         if not self.control_armed:
@@ -1216,6 +1239,9 @@ class MainWindow(QMainWindow):
                     self.control_palm_started = None
                     self.control_votes.clear()
                     self.control_previous_gesture = None
+                    self.control_hand_anchor = None
+                    self.control_cursor_position = None
+                    self.control_pinching = False
                     self._record_control_action("Control armed")
                     self._refresh_control_ui()
                 else:
@@ -1261,8 +1287,7 @@ class MainWindow(QMainWindow):
             self.control_previous_gesture = gesture
             return
         label, callback, cooldown = action
-        is_slide_action = gesture in {"Victory", "Pointing_Up"}
-        if is_slide_action and self.control_previous_gesture == gesture:
+        if self.control_previous_gesture == gesture:
             return
         if now - self.control_last_actions.get(gesture, 0.0) < cooldown:
             return
@@ -1281,6 +1306,8 @@ class MainWindow(QMainWindow):
     def _run_mouse_control(self, payload: dict[str, Any], now: float) -> None:
         hands = tuple(payload.get("hands") or ())
         if not hands:
+            self.control_hand_anchor = None
+            self.control_cursor_position = None
             self.control_pinching = False
             return
         hand_index = min(max(0, int(payload.get("hand_index", 0))), len(hands) - 1)
@@ -1288,23 +1315,54 @@ class MainWindow(QMainWindow):
         if len(points) < 21:
             return
 
-        margin = 0.12
         raw_x = 1.0 - float(points[8][0])
         raw_y = float(points[8][1])
-        target_x = max(0.0, min(1.0, (raw_x - margin) / (1.0 - 2 * margin)))
-        target_y = max(0.0, min(1.0, (raw_y - margin) / (1.0 - 2 * margin)))
-        if self.control_cursor_position is None:
-            smooth_x, smooth_y = target_x, target_y
-        else:
-            previous_x, previous_y = self.control_cursor_position
-            smooth_x = previous_x + 0.32 * (target_x - previous_x)
-            smooth_y = previous_y + 0.32 * (target_y - previous_y)
-        self.control_cursor_position = (smooth_x, smooth_y)
-        self.computer_controller.move_pointer(smooth_x, smooth_y)
-
         palm_size = self._distance(points[0], points[9])
         pinch_size = self._distance(points[4], points[8])
-        pinching = palm_size > 0.01 and pinch_size / palm_size < 0.32
+        pinching = palm_size > 0.01 and pinch_size / palm_size < 0.28
+        name = str(payload.get("name", "None"))
+        score = float(payload.get("score", 0.0))
+        pointing = name == "Pointing_Up" and score >= 0.55
+        was_engaged = self.control_hand_anchor is not None
+        if not pointing and not (pinching and was_engaged):
+            self.control_hand_anchor = None
+            self.control_cursor_position = None
+            self.control_pinching = False
+            return
+
+        if self.control_hand_anchor is None:
+            self.control_hand_anchor = (raw_x, raw_y)
+            self.control_cursor_position = (
+                self.computer_controller.pointer_position() or (0.5, 0.5)
+            )
+            self.control_pinching = pinching
+            return
+
+        anchor_x, anchor_y = self.control_hand_anchor
+        self.control_hand_anchor = (raw_x, raw_y)
+        if not pinching and self.control_cursor_position is not None:
+            delta_x = raw_x - anchor_x
+            delta_y = raw_y - anchor_y
+            # Ignore roughly one source-camera pixel of wobble, then remove
+            # that dead-zone amount from real movement so the pointer starts
+            # gently instead of jumping.
+            dead_zone = 0.006
+            delta_x = math.copysign(
+                max(0.0, abs(delta_x) - dead_zone), delta_x
+            )
+            delta_y = math.copysign(
+                max(0.0, abs(delta_y) - dead_zone), delta_y
+            )
+            maximum_step = 0.020
+            delta_x = max(-maximum_step, min(maximum_step, delta_x * 1.10))
+            delta_y = max(-maximum_step, min(maximum_step, delta_y * 1.10))
+            previous_x, previous_y = self.control_cursor_position
+            pointer_x = max(0.0, min(1.0, previous_x + delta_x))
+            pointer_y = max(0.0, min(1.0, previous_y + delta_y))
+            self.control_cursor_position = (pointer_x, pointer_y)
+            if delta_x or delta_y:
+                self.computer_controller.move_pointer(pointer_x, pointer_y)
+
         if pinching and not self.control_pinching and now - self.control_last_click >= 0.6:
             if self.computer_controller.click():
                 self.control_last_click = now
@@ -1323,7 +1381,7 @@ class MainWindow(QMainWindow):
         pixmap = QPixmap.fromImage(image).scaled(
             self.camera_preview.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.FastTransformation,
+            Qt.TransformationMode.SmoothTransformation,
         )
         self.camera_preview.setPixmap(pixmap)
 
@@ -1366,13 +1424,23 @@ class MainWindow(QMainWindow):
         self._start_selected_camera()
 
     def _on_camera_performance(self, message: str) -> None:
+        warning = "LOW CAMERA QUALITY" in message
+        self.camera_performance_label.setProperty("warning", warning)
+        self.camera_performance_label.style().unpolish(self.camera_performance_label)
+        self.camera_performance_label.style().polish(self.camera_performance_label)
         self.camera_performance_label.setText(message)
         self.system_status.setToolTip(message)
         parts = [part.strip() for part in message.split("•")]
-        self.system_status.setText(" • ".join(parts[:2]))
+        if warning:
+            self.system_status.setText(f"{parts[0]} • LOW QUALITY")
+        else:
+            self.system_status.setText(" • ".join(parts[:2]))
 
     def _on_camera_status(self, message: str, ok: bool) -> None:
         self.camera_ok = ok
+        self.camera_performance_label.setProperty("warning", False)
+        self.camera_performance_label.style().unpolish(self.camera_performance_label)
+        self.camera_performance_label.style().polish(self.camera_performance_label)
         summary = message.split("•", 1)[0].split(".", 1)[0].strip()
         if not ok and ":" in summary:
             summary = summary.split(":", 1)[0]

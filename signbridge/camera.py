@@ -30,6 +30,98 @@ from signbridge.landmarks import (
 )
 
 
+def smooth_hand_tracks(
+    current_hands: tuple[np.ndarray, ...],
+    previous_hands: tuple[np.ndarray, ...],
+) -> tuple[np.ndarray, ...]:
+    """Reduce small landmark jitter while still following deliberate movement."""
+    if not current_hands or len(current_hands) != len(previous_hands):
+        return tuple(np.asarray(hand, dtype=np.float32).copy() for hand in current_hands)
+
+    aligned_previous = previous_hands
+    if len(current_hands) == 2:
+        direct = sum(
+            float(np.linalg.norm(current[0, :2] - previous[0, :2]))
+            for current, previous in zip(current_hands, previous_hands)
+        )
+        swapped_previous = tuple(reversed(previous_hands))
+        swapped = sum(
+            float(np.linalg.norm(current[0, :2] - previous[0, :2]))
+            for current, previous in zip(current_hands, swapped_previous)
+        )
+        if swapped < direct:
+            aligned_previous = swapped_previous
+
+    smoothed: list[np.ndarray] = []
+    for current, previous in zip(current_hands, aligned_previous):
+        current = np.asarray(current, dtype=np.float32)
+        previous = np.asarray(previous, dtype=np.float32)
+        wrist_jump = float(np.linalg.norm(current[0, :2] - previous[0, :2]))
+        if wrist_jump > 0.20:
+            smoothed.append(current.copy())
+            continue
+        movement = float(
+            np.mean(np.linalg.norm(current[:, :2] - previous[:, :2], axis=1))
+        )
+        alpha = float(np.clip(0.18 + movement * 10.0, 0.18, 0.72))
+        smoothed.append(previous + alpha * (current - previous))
+    return tuple(smoothed)
+
+
+def resize_for_tracking(frame: np.ndarray, maximum_width: int = 640) -> np.ndarray:
+    """Keep the visible frame sharp while limiting MediaPipe processing cost."""
+    height, width = frame.shape[:2]
+    if width <= maximum_width:
+        return frame
+    scale = maximum_width / width
+    target_height = max(1, int(round(height * scale)))
+    return cv2.resize(
+        frame, (maximum_width, target_height), interpolation=cv2.INTER_AREA
+    )
+
+
+def prepare_preview_frame(
+    frame: np.ndarray,
+    hands: tuple[np.ndarray, ...],
+    minimum_width: int = 640,
+) -> np.ndarray:
+    """Enlarge very small camera frames before drawing a crisp hand overlay.
+
+    This makes the preview less blocky, but it cannot create camera detail that
+    was never captured.
+    """
+    height, width = frame.shape[:2]
+    preview = frame
+    if width < minimum_width:
+        scale = minimum_width / max(1, width)
+        target_height = max(1, int(round(height * scale)))
+        preview = cv2.resize(
+            frame,
+            (minimum_width, target_height),
+            interpolation=cv2.INTER_LANCZOS4,
+        )
+    return draw_hand_points_overlay(preview, hands)
+
+
+def camera_resolution_warning(width: int, height: int) -> str | None:
+    """Explain when Windows is supplying too little real camera detail."""
+    if width >= 640 and height >= 360:
+        return None
+    return (
+        f"LOW CAMERA QUALITY: Windows supplies only {width}×{height}. "
+        "SignBridge smooths the preview, but software cannot restore missing detail. "
+        "Update the official camera driver or use a USB webcam."
+    )
+
+
+def configure_camera(camera: cv2.VideoCapture) -> None:
+    """Request useful defaults without forcing an unsupported pixel format."""
+    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    camera.set(cv2.CAP_PROP_FPS, 30)
+    camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+
 class CameraWorker(QThread):
     frame_ready = Signal(object)
     camera_status = Signal(str, bool)
@@ -167,12 +259,12 @@ class CameraWorker(QThread):
                 False,
             )
             return
-        # 640x480 is widely supported and leaves more time for smooth preview and
-        # landmark tracking than asking an unknown webcam for an unusual size.
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        camera.set(cv2.CAP_PROP_FPS, 30)
-        camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        # Request a detailed preview. Do not force a video encoding: this
+        # laptop's camera exposes YUY2/RGB24 only, while other webcams may use
+        # MJPEG. Forcing the wrong encoding can produce colored noise.
+        configure_camera(camera)
+        capture_width = max(1, int(camera.get(cv2.CAP_PROP_FRAME_WIDTH)))
+        capture_height = max(1, int(camera.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
         last_preview = 0.0
         metric_started = time.monotonic()
@@ -196,13 +288,7 @@ class CameraWorker(QThread):
                 callback_time = time.monotonic()
                 latency_ms = max(0.0, callback_time * 1000.0 - timestamp_ms)
                 raw_hands = gesture_result_to_hand_points(result)
-                if raw_hands and len(raw_hands) == len(previous_hands):
-                    smoothed_hands = tuple(
-                        previous + 0.58 * (current - previous)
-                        for previous, current in zip(previous_hands, raw_hands)
-                    )
-                else:
-                    smoothed_hands = raw_hands
+                smoothed_hands = smooth_hand_tracks(raw_hands, previous_hands)
                 previous_hands = smoothed_hands
                 with result_lock:
                     latest_hands = smoothed_hands
@@ -295,6 +381,7 @@ class CameraWorker(QThread):
                         continue
                     now = time.monotonic()
                     source_frames += 1
+                    capture_height, capture_width = frame.shape[:2]
 
                     # Keep the visible video independent from MediaPipe. The
                     # tracker is allowed to skip frames under load, but the
@@ -302,11 +389,15 @@ class CameraWorker(QThread):
                     if now - last_preview >= 1.0 / 24.0:
                         with result_lock:
                             hands_for_preview = latest_hands
-                        display = draw_hand_points_overlay(frame, hands_for_preview)
+                        # Upscale a low-resolution source before drawing. Drawing
+                        # first would enlarge the overlay itself and make the dots
+                        # and lines look pixelated and oversized.
+                        display = prepare_preview_frame(frame, hands_for_preview)
                         self.frame_ready.emit(cv2.flip(display, 1))
                         last_preview = now
 
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    tracking_frame = resize_for_tracking(frame)
+                    rgb = cv2.cvtColor(tracking_frame, cv2.COLOR_BGR2RGB)
                     rgb = np.ascontiguousarray(rgb)
                     timestamp = int(time.monotonic() * 1000)
                     if timestamp <= last_timestamp:
@@ -327,14 +418,25 @@ class CameraWorker(QThread):
                         preview_fps = source_frames / metric_elapsed
                         tracking_fps = tracked / metric_elapsed
                         average_latency = latency_total / max(1, tracked)
-                        if preview_fps < 8.0:
+                        resolution_warning = camera_resolution_warning(
+                            capture_width, capture_height
+                        )
+                        if resolution_warning:
                             status = (
-                                f"Camera {self.camera_index} slow • {preview_fps:.0f} preview FPS • "
+                                f"Camera {self.camera_index} • {capture_width}×{capture_height} • "
+                                f"{preview_fps:.0f} preview FPS • {tracking_fps:.0f} hand FPS • "
+                                f"{resolution_warning}"
+                            )
+                        elif preview_fps < 8.0:
+                            status = (
+                                f"Camera {self.camera_index} slow • {capture_width}×{capture_height} • "
+                                f"{preview_fps:.0f} preview FPS • "
                                 "close browser/meeting camera tabs and improve lighting"
                             )
                         else:
                             status = (
-                                f"Camera {self.camera_index} • {preview_fps:.0f} preview FPS • "
+                                f"Camera {self.camera_index} • {capture_width}×{capture_height} • "
+                                f"{preview_fps:.0f} preview FPS • "
                                 f"{tracking_fps:.0f} hand FPS • {average_latency:.0f} ms"
                             )
                         self.performance_status.emit(status)

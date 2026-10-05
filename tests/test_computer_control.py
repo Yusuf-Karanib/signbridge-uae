@@ -21,6 +21,11 @@ class FakeUser32:
         self.pointer = (x, y)
         return 1
 
+    def GetCursorPos(self, pointer: object) -> int:
+        pointer._obj.x = 960
+        pointer._obj.y = 540
+        return 1
+
     def mouse_event(
         self, flags: int, _dx: int, _dy: int, _data: int, _extra: int
     ) -> None:
@@ -46,6 +51,13 @@ class ComputerControllerTests(unittest.TestCase):
         self.assertTrue(self.controller.move_pointer(1.2, -0.2))
         self.assertEqual(self.user32.pointer, (1919, 0))
 
+    def test_pointer_position_is_returned_as_screen_fraction(self) -> None:
+        position = self.controller.pointer_position()
+
+        self.assertIsNotNone(position)
+        self.assertAlmostEqual(position[0], 960 / 1919)
+        self.assertAlmostEqual(position[1], 540 / 1079)
+
     def test_click_sends_down_then_up(self) -> None:
         self.assertTrue(self.controller.click())
         self.assertEqual(self.user32.mouse_flags, [0x0002, 0x0004])
@@ -55,6 +67,7 @@ class ComputerControllerTests(unittest.TestCase):
         controller._user32 = None
         self.assertFalse(controller.volume_up())
         self.assertFalse(controller.move_pointer(0.5, 0.5))
+        self.assertIsNone(controller.pointer_position())
         self.assertFalse(controller.click())
 
 

@@ -5,6 +5,10 @@ import sys
 from typing import Any
 
 
+class _Point(ctypes.Structure):
+    _fields_ = (("x", ctypes.c_long), ("y", ctypes.c_long))
+
+
 class ComputerController:
     """Small Windows input wrapper used only after the user enables control mode."""
 
@@ -56,6 +60,19 @@ class ComputerController:
         x = int(max(0.0, min(1.0, normalized_x)) * (width - 1))
         y = int(max(0.0, min(1.0, normalized_y)) * (height - 1))
         return bool(self._user32.SetCursorPos(x, y))
+
+    def pointer_position(self) -> tuple[float, float] | None:
+        if self._user32 is None:
+            return None
+        point = _Point()
+        if not self._user32.GetCursorPos(ctypes.byref(point)):
+            return None
+        width = max(1, int(self._user32.GetSystemMetrics(0)))
+        height = max(1, int(self._user32.GetSystemMetrics(1)))
+        return (
+            max(0.0, min(1.0, point.x / max(1, width - 1))),
+            max(0.0, min(1.0, point.y / max(1, height - 1))),
+        )
 
     def click(self) -> bool:
         if self._user32 is None:

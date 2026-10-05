@@ -2,6 +2,8 @@
 
 This guide explains what SignBridge is, why it was designed this way, how every part works, how to train and test it properly, and how to describe it honestly.
 
+For a short operating manual for the latest camera and computer controls, read `CONTROL_GUIDE.md`.
+
 ## Read these three parts first
 
 1. **What exists now:** the application, improved hand tracking, training system, testing system, text, speech and an optional computer-control experiment are built. A few personal ASL samples exist, but there is no complete dataset or current sign-recognition model yet.
@@ -171,11 +173,13 @@ The history is not a translated sentence. It is simply a list of accepted isolat
 
 ### Camera controls
 
-- Camera **0** is the normal default webcam.
-- If the wrong camera opens or camera 0 is unavailable, choose **1** or **2** and press **Restart**.
+- Camera **0** is the normal default webcam. Camera **1** and **2** mean other physical or virtual camera devices; they are not picture-quality levels.
+- If the wrong camera opens or camera 0 is unavailable, choose **1** and press **Restart**. Try **2** only if needed.
 - **Restart** safely closes the old camera connection before opening the selected one. It does not delete samples or models.
-- The line below the preview shows preview FPS, hand-tracking FPS and processing delay.
-- The visible preview runs separately from landmark processing, so tracking can skip a frame without freezing the camera picture.
+- The line below the preview shows the actual resolution, preview FPS, hand-tracking FPS and processing delay.
+- The app requests a 1280×720 picture and uses smooth display scaling. MediaPipe receives a smaller copy, so a sharper preview does not multiply tracking cost.
+- Small landmark jumps receive stronger smoothing while deliberate movement follows faster.
+- If the line says **LOW CAMERA QUALITY**, Windows is giving the app less than 640×360. The app can enlarge it smoothly, but only an official driver update or a different webcam can add real detail.
 
 ### Train model
 
@@ -220,7 +224,9 @@ This is separate from sign-language recognition. It uses Google's generic hand-g
 4. Use the gestures listed on screen.
 5. Press **Stop computer control** when finished.
 
-For volume and slides, thumb up/down changes volume, victory moves to the next slide and pointing up moves to the previous slide. For mouse mode, the index fingertip moves the pointer and touching the thumb to the index fingertip clicks.
+For volume and slides, thumb up/down changes volume, victory moves to the next slide and pointing up moves to the previous slide. Release fully between commands; holding one gesture sends only one command.
+
+For mouse mode, hold one index finger pointing up and move slowly. Lower it to pause and reposition your hand. The pointer moves relative to its current location instead of jumping to the hand's absolute camera position. Touching the thumb and index fingertip together clicks.
 
 Control always starts off. Changing modes requires arming again. Leaving the tab, losing the camera or closing the app stops control. Seven-frame voting and action delays reduce accidental commands, but this remains an experiment and should be tested before a presentation.
 
