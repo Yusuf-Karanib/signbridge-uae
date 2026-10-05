@@ -114,12 +114,25 @@ def camera_resolution_warning(width: int, height: int) -> str | None:
     )
 
 
+def is_corrupted_camera_frame(frame: np.ndarray) -> bool:
+    """Detect the strong rainbow-noise pattern produced by a broken webcam stream."""
+    if frame.ndim != 3 or frame.shape[2] != 3 or frame.size == 0:
+        return True
+    sample = frame
+    if frame.shape[1] > 320:
+        sample = resize_for_tracking(frame, maximum_width=320)
+    pixels = sample.astype(np.int16)
+    chroma = float(np.mean(np.max(pixels, axis=2) - np.min(pixels, axis=2)))
+    horizontal_change = float(np.mean(np.abs(pixels[:, 1:] - pixels[:, :-1])))
+    vertical_change = float(np.mean(np.abs(pixels[1:] - pixels[:-1])))
+    return chroma > 75.0 and max(horizontal_change, vertical_change) > 35.0
+
+
 def configure_camera(camera: cv2.VideoCapture) -> None:
     """Request useful defaults without forcing an unsupported pixel format."""
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     camera.set(cv2.CAP_PROP_FPS, 30)
-    camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 
 class CameraWorker(QThread):
@@ -269,6 +282,8 @@ class CameraWorker(QThread):
         last_preview = 0.0
         metric_started = time.monotonic()
         source_frames = 0
+        corrupted_frames = 0
+        reconnect_attempts = 0
         hand_tracking_frames = 0
         hand_tracking_latency_ms = 0.0
         metrics_lock = threading.Lock()
@@ -379,6 +394,37 @@ class CameraWorker(QThread):
                         self.camera_status.emit("Camera frame was lost.", False)
                         time.sleep(0.1)
                         continue
+                    if is_corrupted_camera_frame(frame):
+                        corrupted_frames += 1
+                        if corrupted_frames < 3:
+                            self.performance_status.emit(
+                                "Ignoring a broken camera frame…"
+                            )
+                            continue
+                        reconnect_attempts += 1
+                        if reconnect_attempts > 3:
+                            self.camera_status.emit(
+                                "Camera kept sending corrupted frames. Close other camera apps, then press Restart.",
+                                False,
+                            )
+                            break
+                        self.performance_status.emit(
+                            f"Camera sent corrupted frames • reconnecting ({reconnect_attempts}/3)…"
+                        )
+                        camera.release()
+                        time.sleep(0.5)
+                        camera, backend_name = self._open_camera(self.camera_index)
+                        if not camera.isOpened():
+                            self.camera_status.emit(
+                                "Camera reconnect failed. Close other camera apps, then press Restart.",
+                                False,
+                            )
+                            break
+                        configure_camera(camera)
+                        corrupted_frames = 0
+                        continue
+                    corrupted_frames = 0
+                    reconnect_attempts = 0
                     now = time.monotonic()
                     source_frames += 1
                     capture_height, capture_width = frame.shape[:2]

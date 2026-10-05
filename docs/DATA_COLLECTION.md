@@ -9,12 +9,12 @@ Keep this simple and consistent.
 5. If possible, use two or three training people with 10 to 15 examples per class from each.
 6. Each person also records 10 to 20 `OTHER / NO SIGN` examples: resting, waving, adjusting clothing and unsupported gestures.
 7. Change distance, background and lighting during the session.
-8. For unseen-person reliability, aim for five or six training people per language. This gives 50 to 60 examples per sign when each records 10.
+8. For the current 30-example target, aim for three training people per language with 10 examples per sign. More people are better when available.
 9. Keep at least one different person for final testing; two or three is better. Record them only in the **Final test** tab so they can never enter training accidentally.
 
 Five samples per class is only the technical minimum for checking that the pipeline works. It is not enough for an event accuracy claim.
 
-Sixty examples is not a guarantee. Sixty attempts from one person still do not prove that the model works for a new person.
+Thirty examples is not a guarantee. Thirty attempts from one person still do not prove that the model works for a new person.
 
 The app stores extracted landmark coordinates. It does not store camera video.
 

@@ -17,7 +17,7 @@ For computer control, open **Computer control**, choose a mode, turn it on and h
 
 Speech is manual by default. Check the text, then press **Speak result**. Automatic speech is optional for a controlled demo.
 
-Before the event, get every sign you keep checked by fluent signers. Sixty recordings from one person do not prove unseen-person accuracy.
+Before the event, get every sign you keep checked by fluent signers. Thirty recordings from one person do not prove unseen-person accuracy.
 
 This prototype recognizes isolated signs. It does not translate full conversations.
 

@@ -8,6 +8,7 @@ from signbridge.camera import (
     CameraWorker,
     camera_resolution_warning,
     configure_camera,
+    is_corrupted_camera_frame,
     prepare_preview_frame,
     resize_for_tracking,
     smooth_hand_tracks,
@@ -30,6 +31,19 @@ class CameraWorkerTests(unittest.TestCase):
 
         property_ids = {property_id for property_id, _value in camera.properties}
         self.assertNotIn(cv2.CAP_PROP_FOURCC, property_ids)
+        self.assertNotIn(cv2.CAP_PROP_BUFFERSIZE, property_ids)
+
+    def test_rainbow_noise_is_rejected_without_rejecting_a_normal_frame(self) -> None:
+        noise = np.random.default_rng(7).integers(
+            0, 256, size=(120, 160, 3), dtype=np.uint8
+        )
+        gradient = np.tile(
+            np.linspace(20, 220, 160, dtype=np.uint8), (120, 1)
+        )
+        normal = np.repeat(gradient[:, :, None], 3, axis=2)
+
+        self.assertTrue(is_corrupted_camera_frame(noise))
+        self.assertFalse(is_corrupted_camera_frame(normal))
 
     def test_preview_can_stay_large_while_tracking_copy_is_small(self) -> None:
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)

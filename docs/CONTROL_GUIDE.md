@@ -101,3 +101,9 @@ Press **Stop computer control** first. Then:
 
 The revised mouse mode no longer maps one hand position directly to the whole screen. Pointing starts from the pointer's current position, tiny movements are ignored, large steps are limited, and lowering the index finger pauses movement. This reduces jumping, but the 160×120 camera feed can still limit accuracy.
 
+## 9. If the camera shows coloured static
+
+The older version used a low-latency buffer setting that this Realtek camera cannot handle. That setting has been removed. The current version also ignores obvious rainbow-noise frames and reconnects automatically up to three times.
+
+If coloured static remains, close every SignBridge, Camera, Zoom, Teams and browser camera window. Open SignBridge once and use camera 0. Press **Restart** once only if needed.
+

@@ -195,7 +195,7 @@ This is the data collection and model training screen.
 - Use **Remove last sample** when the latest recording was clearly wrong. It is moved to a recoverable trash folder.
 - Train or update the selected language model after enough data is collected.
 
-The sample count shows a target of 60 for each class. Five examples per class is only the technical minimum for checking whether the software pipeline can train; it is not enough for an event claim.
+The sample count shows a practical target of 30 for each class. Five examples per class is the technical minimum for checking whether the software pipeline can train, so you can start testing before reaching 30. A small dataset is not enough for a general accuracy claim.
 
 Adding or removing samples does not change an existing model automatically. Press **Train or update** again.
 
@@ -276,8 +276,8 @@ The software records that a review was claimed; it cannot verify the reviewer's 
 
 ### People and volume
 
-Sixty examples per class is a planning target, not a magic accuracy number. The
-number of different people matters more than repeating the same movement 60 times.
+Thirty examples per class is a practical prototype target, not a magic accuracy number. The
+number of different people matters more than repeating the same movement 30 times.
 Only an untouched final test can show how well the model works.
 
 Use the plan that is honest for the people available:
@@ -288,8 +288,9 @@ Use the plan that is honest for the people available:
 - **Better small demo:** use two or three training people with 10 to 15 attempts
   per class from each. Keep at least one different person completely untouched
   for Final test.
-- **Unseen-person target:** use five or six training people with 10 attempts per
-  class, then two or three completely different final testers.
+- **Unseen-person target:** use at least three training people with 10 attempts
+  per class, then one or more completely different final testers. More people
+  are still better when available.
 
 If time is short, fewer well-tested signs are better than 8 weak signs.
 
@@ -298,8 +299,8 @@ Under the multi-person plans, each person should record:
 - 10 attempts for each of the 4 supported signs.
 - 10 to 20 varied `OTHER / NO SIGN` attempts.
 
-That is 50 to 60 recordings per person per language when following the
-multi-person plan. Plan approximately 15 to 25 minutes per person once
+That is 10 attempts per supported sign plus a varied OTHER / NO SIGN set.
+Plan approximately 15 to 25 minutes per person once
 instructions, selection changes and retries are included.
 
 ### Person IDs
