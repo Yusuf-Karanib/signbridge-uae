@@ -38,6 +38,7 @@ def _report_uncaught_error(
 
 def main() -> int:
     try:
+        from PySide6.QtCore import QTimer
         from PySide6.QtWidgets import QApplication
 
         from signbridge.config import ensure_project_directories
@@ -48,7 +49,13 @@ def main() -> int:
         app.setApplicationName("SignBridge UAE")
         app.setOrganizationName("SignBridge UAE")
         window = MainWindow()
+        screen = app.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            window.move(available.center() - window.rect().center())
         window.show()
+        QTimer.singleShot(0, window.raise_)
+        QTimer.singleShot(0, window.activateWindow)
         return app.exec()
     except Exception:
         _report_uncaught_error(*sys.exc_info())

@@ -1,12 +1,16 @@
 @echo off
 setlocal
-cd /d "%~dp0"
-if not exist ".venv\Scripts\python.exe" (
+set "ProjectFolder=%~dp0"
+for %%I in ("%~dp0..\..") do set "MainProject=%%~fI\"
+if not exist "%ProjectFolder%.venv\Scripts\python.exe" if exist "%MainProject%.venv\Scripts\python.exe" set "ProjectFolder=%MainProject%"
+cd /d "%ProjectFolder%"
+if not exist "%ProjectFolder%.venv\Scripts\python.exe" (
   echo SignBridge is not set up yet.
-  echo Right-click setup.ps1 and choose "Run with PowerShell" first.
+  echo Folder checked: %ProjectFolder%
+  echo Right-click setup.ps1 in that folder and choose "Run with PowerShell" first.
   pause
   exit /b 1
 )
 echo This diagnostic window stays open so startup errors remain visible.
-".venv\Scripts\python.exe" app.py
+"%ProjectFolder%.venv\Scripts\python.exe" "%ProjectFolder%app.py"
 if errorlevel 1 pause
