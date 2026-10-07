@@ -1,5 +1,7 @@
 # SignBridge UAE
 
+Public repository: [github.com/Yusuf-Karanib/signbridge-uae](https://github.com/Yusuf-Karanib/signbridge-uae)
+
 SignBridge is a local webcam prototype for **8 isolated signs**:
 
 - 4 American Sign Language signs with English text and speech.
