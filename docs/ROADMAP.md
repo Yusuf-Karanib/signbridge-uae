@@ -8,6 +8,16 @@
 - One recorded attempt produces text, confidence and optional speech.
 - Unsupported or unclear attempts should be rejected.
 
+## Now: guided assistance upgrade
+
+- One confirmed sign opens a small set of predefined reception-desk requests.
+- The signer confirms both the sign and the complete request before speech.
+- Staff can type a short reply.
+- Completing the interaction clears its temporary conversation.
+- Nothing is sent to an external service in this version.
+
+The next proof is not a larger vocabulary. Test whether real users can finish the supported interaction without a false action, how often they need correction, and how long it takes.
+
 This is the smallest version that can be trained and tested honestly before the event.
 
 ## Next: uploaded videos

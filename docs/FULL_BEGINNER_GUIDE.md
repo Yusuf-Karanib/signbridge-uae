@@ -6,9 +6,9 @@ For a short operating manual for the latest camera and computer controls, read `
 
 ## Read these three parts first
 
-1. **What exists now:** the application, improved hand tracking, training system, testing system, text, speech and an optional computer-control experiment are built. A few personal ASL samples exist, but there is no complete dataset or current sign-recognition model yet.
-2. **What must happen next:** fluent signers must validate the 8 sign forms, then real people must record examples, the two models must be trained, and completely new people must test them.
-3. **What it is:** a bilingual prototype that recognizes one of 4 ASL signs or one of 4 Emirati signs during a short prompted recording. It is not a full sign-language or sentence translator.
+1. **What exists now:** the application, improved hand tracking, training system, testing system, text, speech, Guided Assistance and an optional computer-control experiment are built. A personalized ASL model trained only on Yusuf exists. No Emirati model exists yet.
+2. **What must happen next:** fluent signers must validate the 8 sign forms, more real people must record examples, the Emirati model must be trained, the ASL model must be strengthened, and completely new people must test both models.
+3. **What it is:** a bilingual prototype that recognizes one of 4 ASL signs or one of 4 Emirati signs during a short prompted recording. Guided Assistance can turn a confirmed result into one predefined reception-desk request. It is not a full sign-language or sentence translator.
 
 The difference between **software working** and **recognition working** is important. The software opens and the camera tracks correctly. Recognition cannot work until suitable human examples are recorded and the models are trained.
 
@@ -22,6 +22,8 @@ The screenshot shows a healthy starting state:
 - **Not trained yet** means the selected ASL classifier does not exist yet.
 - **Sign forms reviewed: 0/4** means no fluent ASL signer has yet been recorded as approving the exact forms.
 - **No prediction yet** is expected because no usable model exists.
+
+That screenshot showed the earlier starting state. The project now contains a one-person ASL model, but it is still not validated for new people. The Emirati model is still untrained.
 
 The tracking points are not sign recognition. MediaPipe is a pretrained tracker that finds locations such as wrists, fingers, shoulders and elbows. SignBridge still needs a second, locally trained model to learn which movement belongs to each supported sign.
 
@@ -152,7 +154,22 @@ The default confidence threshold is 82%. When there is enough multi-person train
 
 A confidence score is not proof. It only describes how strongly this model prefers one choice based on the data it learned.
 
-## 8. The four application screens
+## 8. The five application screens
+
+### Guided Assistance
+
+This is now the first screen and the main product demonstration. It completes one small communication loop instead of stopping at a sign label.
+
+1. Choose ASL or Emirati Sign Language.
+2. Press **Record a request sign** and perform one supported sign.
+3. Read the camera suggestion and press **Yes, this sign is correct** or **No, try again**.
+4. If the camera is unsure or wrong, use **Correction fallback** to select the intended supported sign manually. Manual selection still requires confirmation.
+5. Choose the exact follow-up request. These choices are buttons; the camera did not translate a sentence.
+6. Read the complete sentence and press **Confirm and show to staff**. Only this final confirmation allows speech.
+7. Staff can type a short reply for the signer to read.
+8. Press **Complete and clear session**. The temporary conversation disappears and is not written to disk.
+
+The first version uses a small rule-based workflow, not a language model. That makes every possible request visible, predictable and testable. “Show to staff” means display and speak inside SignBridge; it does not contact staff, create an external ticket or summon an interpreter.
 
 ### Recognize
 
@@ -239,7 +256,7 @@ Control always starts off. Changing modes requires arming again. Leaving the tab
 - Press `Escape`, `F11` or **Exit full screen** to leave full-screen mode.
 - Press **Reset layout** if the window or divider becomes awkward.
 - Each controls page scrolls vertically when the window is too short to show every function at once.
-- On a narrow window, the tab names automatically shorten to **Use**, **Train**, **Test** and **Control**.
+- On a narrow controls panel, the tab names automatically shorten to **Assist**, **Use**, **Train**, **Test** and **PC**.
 
 The camera preview expands with the available area while keeping the video proportions correct.
 
@@ -386,6 +403,10 @@ Do not repeatedly perform signs before pressing Record. This prototype only clas
 
 User corrections do not secretly train the model. New learning only occurs through the training screen followed by retraining.
 
+### How to use Guided Assistance
+
+Use **Guided Assistance** when two people want to complete one small reception-desk interaction. An accepted camera prediction is only a suggestion. SignBridge remains silent until the signer confirms the sign, chooses a follow-up request and confirms the complete sentence. A rejected prediction cannot advance the workflow. Finish by clearing the session before the next person uses the app.
+
 ## 14. How to run the final test
 
 Use at least two completely new people, preferably three.
@@ -480,7 +501,10 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 - A synthetic classifier can train, save, load and predict.
 - Final-test reports stay separated by model version.
 - The vocabulary contains two separate four-sign packs.
-- The desktop window loads with all four tabs.
+- The desktop window loads with all five tabs.
+- Guided Assistance blocks speech until the sign and complete request are confirmed.
+- Rejected predictions cannot advance the guided session.
+- Completing a guided session clears its temporary conversation.
 - Both official MediaPipe models load successfully.
 - Windows input commands are checked with a fake system interface during automated tests.
 - The packaged copy loads and passes the same tests.
@@ -548,16 +572,16 @@ Extract it, run `setup.ps1` once, then double-click `Start SignBridge.vbs`. If t
 
 Use this wording:
 
-> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. MediaPipe tracks hand and body movement, then a separately trained model recognizes one prompted sign. Uncertain results are rejected, and text can be spoken aloud. A separate optional mode uses generic hand gestures to control slides, volume or the mouse. It is not a complete sign-language translator.
+> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. Its Guided Assistance mode asks the signer to confirm the result, choose one predefined reception-desk request and confirm the full sentence before speech. Staff can type a reply, and the temporary session is cleared afterward. It is not a complete sign-language translator.
 
 ### Suggested demonstration
 
 1. State the limitation before demonstrating.
-2. Show that the user explicitly chooses ASL or Emirati Sign Language.
-3. Record one validated ASL sign.
-4. Check the text, confidence and speech.
-5. Switch languages and record one validated Emirati sign.
-6. Show an unsupported movement producing “Not sure.”
+2. Open **Guided Assistance** and explicitly choose ASL or Emirati Sign Language.
+3. Record one validated sign and show that SignBridge waits for confirmation.
+4. Choose the exact request, confirm the sentence and let SignBridge speak it.
+5. Type a short staff reply and complete the session.
+6. Show an unsupported movement producing “Not sure” without advancing or speaking.
 7. Briefly show the Final test report and explain that new people were kept out of training.
 
 Only quote an accuracy number produced by the untouched final-test process. Never quote training accuracy as product accuracy.
@@ -570,7 +594,11 @@ Yes. A pretrained vision model finds landmarks, and locally trained machine lear
 
 ### Does it translate sign language?
 
-No. It recognizes a limited set of isolated, prompted signs. Full translation is a larger future project.
+No. It recognizes a limited set of isolated, prompted signs. Guided Assistance uses a confirmed sign to open predefined buttons; it does not convert free signing into sentences. Full translation is a larger future project.
+
+### Why call Guided Assistance an agent?
+
+It follows one controlled loop: observe a supported sign, reject or ask for confirmation, remember the current request, guide the next choice, speak only after approval, collect a staff reply and stop by clearing the session. It is not a general autonomous agent, and it deliberately does not use a chatbot in this first version.
 
 ### Does it work offline?
 
@@ -617,9 +645,9 @@ Do these in order:
 4. Choose the honest data plan above. Reduce the sign list if the available data is too small.
 5. Train both language models.
 6. Run the full final test with two or three untouched people.
-7. Remove, replace or postpone signs that miss the targets.
-8. Test the exact laptop, webcam, lighting and Arabic voice at the venue.
-9. Back up `data/`, `models/` and the full project folder.
-10. Rehearse the honest 60-second explanation and demonstration.
+7. Test complete Guided Assistance tasks and record false actions, corrections and completion time.
+8. Remove, replace or postpone signs that miss the targets.
+9. Ask Deaf or hard-of-hearing users and fluent signers to review whether the guided interaction is actually useful.
+10. Back up `data/`, `models/` and the full project folder.
 
-The software foundation is ready for that work. The current bottleneck is correct human language data, not another recognition feature.
+The software foundation is ready for that work. The current bottlenecks are correct human language data and feedback from the people the workflow is intended to help.

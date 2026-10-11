@@ -2,12 +2,12 @@
 
 Public repository: [github.com/Yusuf-Karanib/signbridge-uae](https://github.com/Yusuf-Karanib/signbridge-uae)
 
-SignBridge is a local webcam prototype for **8 isolated signs**:
+SignBridge is a local webcam prototype for **8 isolated signs** plus a confirmation-first guided assistance workflow:
 
 - 4 American Sign Language signs with English text and speech.
 - 4 Emirati Sign Language signs with Arabic text and speech.
 
-It recognizes one prompted sign at a time. It is not a full sign-language translator.
+It recognizes one prompted sign at a time. The new Guided Assistance screen turns a confirmed sign into one clear reception-desk request, lets staff type a reply, and then clears the temporary session. It is not a full sign-language translator.
 
 For a complete beginner-friendly explanation of the idea, design, screens, training,
 testing, files and event demonstration, read `docs/FULL_BEGINNER_GUIDE.md`.
@@ -22,8 +22,10 @@ read `docs/CONTROL_GUIDE.md`.
 4. Choose a language and enter a short Person ID.
 5. For a personalized demo, record 20 to 30 varied examples per class from the demonstrator. For unseen-person testing, use several training people and keep different people for Final test.
 6. Press **Train or update this language model**.
-7. Open **Recognize** and record one sign.
-8. Use **Final test** with people who were never used for training.
+7. Open **Guided assistance** and record one sign.
+8. Confirm the camera suggestion, choose the exact request, and confirm the full sentence.
+9. Let staff type a reply, then press **Complete and clear session**.
+10. Use **Final test** with people who were never used for training.
 
 The camera panel shows live FPS. If the default webcam is wrong or busy, choose
 camera 1 or 2 and press **Restart**; saved samples and models are unaffected.
@@ -54,6 +56,8 @@ The exact checklist is in `docs/TEST_PLAN.md`.
 4. The sequence is resized to 32 time steps and includes movement speed.
 5. A separate classifier is trained for each sign language.
 6. Low-confidence results are rejected instead of guessed.
+7. Guided Assistance requires confirmation of both the sign and the complete request before speech.
+8. A small rule-based workflow guides the staff reply and clears all conversation text when the session ends.
 
 Speech is manual by default so a wrong result is not spoken automatically. Automatic speech can be enabled for a controlled demo.
 
@@ -83,6 +87,8 @@ The dataset and licence comparison is in `docs/RESEARCH_BASIS.md`.
 ## Limitations
 
 - Isolated signs only.
+- Guided Assistance supports one short, predefined request at a time.
+- It does not contact staff, create a real ticket or request an interpreter outside the app.
 - Facial grammar is not classified in this version.
 - Source entries are linked, but recorded performances remain unverified until fluent signers review them.
 - Confidence is a model score, not proof.

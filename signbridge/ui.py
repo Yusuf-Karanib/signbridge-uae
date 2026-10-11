@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from signbridge.assistance import AssistanceSession, AssistanceStage
 from signbridge.camera import CameraWorker
 from signbridge.classifier import load_model, predict_sequence, train_language_model
 from signbridge.computer_control import ComputerController
@@ -152,7 +153,7 @@ QTabBar::tab {
     background: #0a1724;
     border: 1px solid #1e3347;
     color: #90a4b9;
-    padding: 10px 18px;
+    padding: 10px 8px;
     margin-right: 4px;
     border-radius: 8px;
 }
@@ -275,9 +276,14 @@ class MainWindow(QMainWindow):
         }
         self.history_entries: list[dict[str, str]] = []
         self.last_spoken: tuple[str, str] | None = None
+        self.assistance_session = AssistanceSession()
+        self.assistance_feedback = "Ready for a new request"
+        self.assistance_result_text = "—"
+        self.assistance_result_confidence: float | None = None
         self.training_worker: TrainingWorker | None = None
         self.camera_worker = CameraWorker(parent=self)
         self.camera_ok = False
+        self.capture_controls_enabled = True
         self.computer_controller = ComputerController()
         self.control_enabled = False
         self.control_armed = False
@@ -298,6 +304,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._connect_events()
         self._refresh_all()
+        QTimer.singleShot(0, self._apply_initial_splitter_sizes)
         QTimer.singleShot(200, self._start_selected_camera)
 
     def _build_ui(self) -> None:
@@ -312,7 +319,7 @@ class MainWindow(QMainWindow):
         title = QLabel("SignBridge UAE")
         title.setObjectName("title")
         self.subtitle_label = QLabel(
-            "8-sign bilingual prototype  •  camera  →  text  →  speech"
+            "8-sign bilingual prototype  •  confirmed request  →  text  →  speech"
         )
         self.subtitle_label.setObjectName("subtitle")
         title_group.addWidget(title)
@@ -331,7 +338,7 @@ class MainWindow(QMainWindow):
         root.addLayout(header)
 
         scope = QLabel(
-            "Prototype scope: 4 ASL signs + 4 Emirati signs. One prompted sign at a time — not conversation translation."
+            "Prototype scope: 4 ASL signs + 4 Emirati signs. Guided Assistance completes one supported request at a time — not full conversation translation."
         )
         scope.setWordWrap(True)
         scope.setObjectName("warning")
@@ -377,6 +384,7 @@ class MainWindow(QMainWindow):
             "Use camera 0 unless it shows the wrong device. Keep your head, shoulders and both hands inside the frame."
         )
         camera_hint.setObjectName("sectionHint")
+        camera_hint.setWordWrap(True)
         camera_layout.addWidget(camera_hint)
         self.camera_preview = QLabel("Camera preview will appear here")
         self.camera_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -408,21 +416,31 @@ class MainWindow(QMainWindow):
 
         side_card = QFrame()
         side_card.setObjectName("card")
-        side_card.setMinimumWidth(420)
+        side_card.setMinimumWidth(450)
         side_layout = QVBoxLayout(side_card)
         side_layout.setContentsMargins(14, 14, 14, 14)
         self.tabs = QTabWidget()
         self.tabs.tabBar().setExpanding(True)
         self.tabs.setDocumentMode(True)
-        self.tabs.addTab(self._build_use_tab(), "Recognize")
-        self.tabs.addTab(self._build_training_tab(), "Train model")
-        self.tabs.addTab(self._build_evaluation_tab(), "Final test")
-        self.tabs.addTab(self._build_control_tab(), "Computer control")
+        self.assistance_tab_index = self.tabs.addTab(
+            self._build_assistance_tab(), "Guided assistance"
+        )
+        self.recognize_tab_index = self.tabs.addTab(self._build_use_tab(), "Recognize")
+        self.training_tab_index = self.tabs.addTab(
+            self._build_training_tab(), "Train model"
+        )
+        self.evaluation_tab_index = self.tabs.addTab(
+            self._build_evaluation_tab(), "Final test"
+        )
+        self.control_tab_index = self.tabs.addTab(
+            self._build_control_tab(), "Computer control"
+        )
         side_layout.addWidget(self.tabs)
         self.main_splitter.addWidget(side_card)
         self.main_splitter.setStretchFactor(0, 6)
         self.main_splitter.setStretchFactor(1, 5)
         self.main_splitter.setSizes((850, 650))
+        self.main_splitter.splitterMoved.connect(self._update_responsive_labels)
 
     @staticmethod
     def _scroll_page() -> tuple[QScrollArea, QVBoxLayout]:
@@ -570,6 +588,150 @@ class MainWindow(QMainWindow):
         self.voice_status.setObjectName("muted")
         history_layout.addWidget(self.voice_status)
         layout.addWidget(history_card)
+        layout.addStretch()
+        return tab
+
+    def _build_assistance_tab(self) -> QWidget:
+        tab, layout = self._scroll_page()
+
+        notice = QLabel(
+            "Guided Assistance handles one short, supported request. It is not full sign-language translation and it does not replace an interpreter."
+        )
+        notice.setWordWrap(True)
+        notice.setObjectName("warning")
+        layout.addWidget(notice)
+
+        language_card, language_layout = self._section_card(
+            "1. Prepare the request",
+            "Choose the sign language. The camera suggests a sign, but nothing is spoken until you confirm it.",
+        )
+        self.assist_language = self._language_combo()
+        language_layout.addWidget(self.assist_language)
+        self.assist_model_status = QLabel()
+        self.assist_model_status.setWordWrap(True)
+        self.assist_model_status.setObjectName("modelStatus")
+        language_layout.addWidget(self.assist_model_status)
+        layout.addWidget(language_card)
+
+        result_card = QFrame()
+        result_card.setObjectName("resultCard")
+        result_layout = QVBoxLayout(result_card)
+        result_layout.setContentsMargins(18, 16, 18, 18)
+        result_layout.setSpacing(9)
+        self.assist_step_label = QLabel("Step 1 of 4 — record one supported sign")
+        self.assist_step_label.setObjectName("sectionTitle")
+        result_layout.addWidget(self.assist_step_label)
+        self.assist_feedback_label = QLabel("Ready for a new request")
+        self.assist_feedback_label.setWordWrap(True)
+        self.assist_feedback_label.setObjectName("muted")
+        result_layout.addWidget(self.assist_feedback_label)
+        self.assist_result_label = QLabel("—")
+        self.assist_result_label.setObjectName("result")
+        self.assist_result_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.assist_result_label.setWordWrap(True)
+        self.assist_result_label.setMinimumHeight(50)
+        result_layout.addWidget(self.assist_result_label)
+        self.assist_confidence_label = QLabel("No prediction yet")
+        self.assist_confidence_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.assist_confidence_label.setObjectName("muted")
+        result_layout.addWidget(self.assist_confidence_label)
+        self.assist_confidence_bar = QProgressBar()
+        self.assist_confidence_bar.setRange(0, 100)
+        self.assist_confidence_bar.setValue(0)
+        result_layout.addWidget(self.assist_confidence_bar)
+        self.assist_capture_button = QPushButton("Record a request sign")
+        self.assist_capture_button.setObjectName("primary")
+        self.assist_capture_button.setMinimumHeight(52)
+        result_layout.addWidget(self.assist_capture_button)
+        confirmation_row = QHBoxLayout()
+        confirmation_row.setSpacing(8)
+        self.assist_confirm_sign_button = QPushButton("Yes, this sign is correct")
+        self.assist_confirm_sign_button.setObjectName("primary")
+        self.assist_retry_button = QPushButton("No, try again")
+        confirmation_row.addWidget(self.assist_confirm_sign_button, 2)
+        confirmation_row.addWidget(self.assist_retry_button, 1)
+        result_layout.addLayout(confirmation_row)
+        layout.addWidget(result_card)
+
+        correction_card, correction_layout = self._section_card(
+            "Correction fallback",
+            "If the camera is unsure or wrong, choose the intended supported sign. You must still confirm it.",
+        )
+        correction_row = QHBoxLayout()
+        correction_row.setSpacing(8)
+        self.assist_manual_sign = QComboBox()
+        correction_row.addWidget(self.assist_manual_sign, 2)
+        self.assist_use_manual_button = QPushButton("Use selected sign")
+        correction_row.addWidget(self.assist_use_manual_button, 1)
+        correction_layout.addLayout(correction_row)
+        layout.addWidget(correction_card)
+
+        self.assist_followup_card, followup_layout = self._section_card(
+            "2. What does the person need?",
+            "Choose one clear follow-up. These are buttons, not signs guessed by the camera.",
+        )
+        self.assist_followup_buttons = [QPushButton() for _ in range(4)]
+        followup_grid = QGridLayout()
+        followup_grid.setHorizontalSpacing(8)
+        followup_grid.setVerticalSpacing(8)
+        for index, button in enumerate(self.assist_followup_buttons):
+            button.setMinimumHeight(44)
+            button.clicked.connect(self._choose_assistance_request)
+            followup_grid.addWidget(button, index // 2, index % 2)
+        followup_layout.addLayout(followup_grid)
+        layout.addWidget(self.assist_followup_card)
+
+        self.assist_request_card, request_layout = self._section_card(
+            "3. Confirm the complete request",
+            "Read this sentence before SignBridge shows and speaks it to staff.",
+        )
+        self.assist_request_preview = QLabel("—")
+        self.assist_request_preview.setObjectName("result")
+        self.assist_request_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.assist_request_preview.setWordWrap(True)
+        self.assist_request_preview.setMinimumHeight(64)
+        request_layout.addWidget(self.assist_request_preview)
+        request_buttons = QHBoxLayout()
+        request_buttons.setSpacing(8)
+        self.assist_send_button = QPushButton("Confirm and show to staff")
+        self.assist_send_button.setObjectName("primary")
+        self.assist_change_button = QPushButton("Change choice")
+        request_buttons.addWidget(self.assist_send_button, 2)
+        request_buttons.addWidget(self.assist_change_button, 1)
+        request_layout.addLayout(request_buttons)
+        layout.addWidget(self.assist_request_card)
+
+        self.assist_conversation_card, conversation_layout = self._section_card(
+            "4. Staff reply",
+            "Staff can type a short reply for the signer to read. Nothing is uploaded or sent outside this app.",
+        )
+        self.assist_conversation_list = QListWidget()
+        self.assist_conversation_list.setMinimumHeight(110)
+        self.assist_conversation_list.setMaximumHeight(180)
+        conversation_layout.addWidget(self.assist_conversation_list)
+        reply_row = QHBoxLayout()
+        reply_row.setSpacing(8)
+        self.assist_staff_reply = QLineEdit()
+        self.assist_staff_reply.setPlaceholderText("Staff types a short reply here")
+        self.assist_staff_reply.setClearButtonEnabled(True)
+        self.assist_staff_reply.setMaxLength(240)
+        reply_row.addWidget(self.assist_staff_reply, 2)
+        self.assist_add_reply_button = QPushButton("Show reply")
+        reply_row.addWidget(self.assist_add_reply_button, 1)
+        conversation_layout.addLayout(reply_row)
+        session_buttons = QHBoxLayout()
+        session_buttons.setSpacing(8)
+        self.assist_speak_again_button = QPushButton("Speak request again")
+        self.assist_complete_button = QPushButton("Complete and clear session")
+        self.assist_complete_button.setObjectName("danger")
+        session_buttons.addWidget(self.assist_speak_again_button, 1)
+        session_buttons.addWidget(self.assist_complete_button, 1)
+        conversation_layout.addLayout(session_buttons)
+        self.assist_voice_status = QLabel("Voice ready")
+        self.assist_voice_status.setObjectName("muted")
+        conversation_layout.addWidget(self.assist_voice_status)
+        layout.addWidget(self.assist_conversation_card)
+
         layout.addStretch()
         return tab
 
@@ -825,12 +987,28 @@ class MainWindow(QMainWindow):
         self.camera_worker.capture_state.connect(self._on_capture_state)
         self.camera_worker.sequence_ready.connect(self._on_sequence_ready)
         self.speech.status_changed.connect(self.voice_status.setText)
+        self.speech.status_changed.connect(self.assist_voice_status.setText)
 
         self.use_language.currentIndexChanged.connect(self._refresh_use_tab)
+        self.assist_language.currentIndexChanged.connect(
+            self._on_assistance_language_changed
+        )
         self.train_language.currentIndexChanged.connect(self._refresh_training_tab)
         self.eval_language.currentIndexChanged.connect(self._refresh_evaluation_tab)
         self.train_sign.currentIndexChanged.connect(self._refresh_training_status)
         self.capture_use_button.clicked.connect(self._capture_for_use)
+        self.assist_capture_button.clicked.connect(self._capture_for_assistance)
+        self.assist_confirm_sign_button.clicked.connect(self._confirm_assistance_sign)
+        self.assist_retry_button.clicked.connect(self._reject_assistance_sign)
+        self.assist_use_manual_button.clicked.connect(self._use_manual_assistance_sign)
+        self.assist_send_button.clicked.connect(self._send_assistance_request)
+        self.assist_change_button.clicked.connect(self._change_assistance_request)
+        self.assist_add_reply_button.clicked.connect(self._add_assistance_reply)
+        self.assist_speak_again_button.clicked.connect(
+            self._speak_assistance_request_again
+        )
+        self.assist_complete_button.clicked.connect(self._complete_assistance_session)
+        self.assist_staff_reply.returnPressed.connect(self._add_assistance_reply)
         self.record_training_button.clicked.connect(self._capture_training_sample)
         self.record_evaluation_button.clicked.connect(self._capture_evaluation_sample)
         self.delete_last_button.clicked.connect(self._remove_last_sample)
@@ -867,12 +1045,24 @@ class MainWindow(QMainWindow):
         self.main_splitter.setSizes((int(width * 0.57), int(width * 0.43)))
         self._update_responsive_labels()
 
+    def _apply_initial_splitter_sizes(self) -> None:
+        total = max(1, self.main_splitter.width())
+        self.main_splitter.setSizes((int(total * 0.55), int(total * 0.45)))
+        self._update_responsive_labels()
+
     def _update_responsive_labels(self) -> None:
-        compact = self.width() < 1180
+        tabs_width = self.tabs.width()
+        compact = self.width() < 1180 or (tabs_width > 0 and tabs_width < 760)
         tab_names = (
-            ("Use", "Train", "Test", "Control")
+            ("Assist", "Use", "Train", "Test", "PC")
             if compact
-            else ("Recognize", "Train model", "Final test", "Computer control")
+            else (
+                "Guided assistance",
+                "Recognize",
+                "Train model",
+                "Final test",
+                "Computer control",
+            )
         )
         for index, name in enumerate(tab_names):
             self.tabs.setTabText(index, name)
@@ -911,6 +1101,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_all(self) -> None:
         self._refresh_use_tab()
+        self._refresh_assistance_tab()
         self._refresh_training_tab()
         self._refresh_evaluation_tab()
         self._refresh_control_ui()
@@ -946,6 +1137,135 @@ class MainWindow(QMainWindow):
         )
         self.capture_use_button.setEnabled(self.camera_ok and bundle is not None)
         self._hide_candidates()
+
+    def _on_assistance_language_changed(self) -> None:
+        language = self._combo_language(self.assist_language)
+        self.assistance_session.reset(language)
+        self.assistance_feedback = "Language changed. Ready for a new request."
+        self.assistance_result_text = "—"
+        self.assistance_result_confidence = None
+        self.assist_staff_reply.clear()
+        self._populate_assistance_signs()
+        self._refresh_assistance_tab()
+
+    def _populate_assistance_signs(self) -> None:
+        language = self._combo_language(self.assist_language)
+        pack = self.vocabulary.pack(language)
+        current_label = self.assist_manual_sign.currentData()
+        self.assist_manual_sign.blockSignals(True)
+        self.assist_manual_sign.clear()
+        for sign in pack.signs:
+            self.assist_manual_sign.addItem(f"{sign.output} ({sign.gloss})", sign.id)
+        if current_label:
+            index = self.assist_manual_sign.findData(current_label)
+            if index >= 0:
+                self.assist_manual_sign.setCurrentIndex(index)
+        self.assist_manual_sign.blockSignals(False)
+
+    def _refresh_assistance_tab(self) -> None:
+        language = self._combo_language(self.assist_language)
+        pack = self.vocabulary.pack(language)
+        if self.assist_manual_sign.count() != len(pack.signs):
+            self._populate_assistance_signs()
+        bundle = self.model_cache.get(language)
+        if bundle is None:
+            model_text = (
+                "Camera recognition is not trained yet. The manual correction fallback still works."
+            )
+        else:
+            metrics = bundle.get("metrics", {})
+            model_text = (
+                f"Camera model ready • unseen-person score: {metrics.get('balanced_accuracy', 0.0) * 100:.1f}%"
+                if metrics.get("validated_on_unseen_people")
+                else "Camera model ready • unseen-person testing is still required."
+            )
+        self.assist_model_status.setProperty("ready", bundle is not None)
+        self.assist_model_status.style().unpolish(self.assist_model_status)
+        self.assist_model_status.style().polish(self.assist_model_status)
+        self.assist_model_status.setText(model_text)
+        self._render_assistance()
+
+    def _render_assistance(self) -> None:
+        session = self.assistance_session
+        stage = session.stage
+        pack = self.vocabulary.pack(self._combo_language(self.assist_language))
+        direction = (
+            Qt.LayoutDirection.RightToLeft
+            if pack.direction == "rtl"
+            else Qt.LayoutDirection.LeftToRight
+        )
+
+        self.assist_feedback_label.setText(self.assistance_feedback)
+        self.assist_result_label.setText(self.assistance_result_text)
+        self.assist_result_label.setLayoutDirection(direction)
+        if self.assistance_result_confidence is None:
+            confidence_text = (
+                "Selected manually — confirmation is still required"
+                if stage == AssistanceStage.CONFIRM_SIGN
+                else "No prediction yet"
+            )
+            confidence_value = 0
+        else:
+            confidence_text = f"Camera confidence: {self.assistance_result_confidence * 100:.0f}%"
+            confidence_value = int(self.assistance_result_confidence * 100)
+        self.assist_confidence_label.setText(confidence_text)
+        self.assist_confidence_bar.setValue(confidence_value)
+
+        model_ready = self.model_cache.get(pack.id) is not None
+        self.assist_capture_button.setEnabled(
+            self.capture_controls_enabled
+            and self.camera_ok
+            and model_ready
+            and stage == AssistanceStage.READY
+        )
+        self.assist_confirm_sign_button.setVisible(
+            stage == AssistanceStage.CONFIRM_SIGN
+        )
+        self.assist_retry_button.setVisible(stage == AssistanceStage.CONFIRM_SIGN)
+        manual_allowed = stage in (
+            AssistanceStage.READY,
+            AssistanceStage.CONFIRM_SIGN,
+        )
+        self.assist_manual_sign.setEnabled(manual_allowed)
+        self.assist_use_manual_button.setEnabled(manual_allowed)
+
+        self.assist_followup_card.setVisible(stage == AssistanceStage.CHOOSE_REQUEST)
+        options = session.available_options() if stage == AssistanceStage.CHOOSE_REQUEST else ()
+        for button, option in zip(self.assist_followup_buttons, options):
+            button.setText(option.button_text)
+            button.setProperty("assistance_option_id", option.id)
+            button.setLayoutDirection(direction)
+            button.show()
+        for button in self.assist_followup_buttons[len(options):]:
+            button.hide()
+
+        show_request = stage == AssistanceStage.CONFIRM_REQUEST
+        self.assist_request_card.setVisible(show_request)
+        if show_request and session.selected_option is not None:
+            self.assist_request_preview.setText(session.selected_option.request_text)
+            self.assist_request_preview.setLayoutDirection(direction)
+
+        show_conversation = stage == AssistanceStage.WAITING_REPLY
+        self.assist_conversation_card.setVisible(show_conversation)
+        self.assist_conversation_list.clear()
+        for turn in session.turns:
+            prefix = "Signer" if turn.speaker == "Signer" else "Staff"
+            item = QListWidgetItem(f"{prefix}: {turn.text}")
+            if turn.locale.startswith("ar"):
+                item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
+            self.assist_conversation_list.addItem(item)
+        self.assist_conversation_list.scrollToBottom()
+
+        if stage == AssistanceStage.READY:
+            self.assist_step_label.setText("Step 1 of 4 — record one supported sign")
+        elif stage == AssistanceStage.CONFIRM_SIGN:
+            self.assist_step_label.setText("Confirm the detected sign")
+        elif stage == AssistanceStage.CHOOSE_REQUEST:
+            self.assist_step_label.setText("Step 2 of 4 — choose the request")
+        elif stage == AssistanceStage.CONFIRM_REQUEST:
+            self.assist_step_label.setText("Step 3 of 4 — confirm the full request")
+        else:
+            self.assist_step_label.setText("Step 4 of 4 — staff can reply")
 
     def _refresh_training_tab(self) -> None:
         language = self._combo_language(self.train_language)
@@ -1183,7 +1503,7 @@ class MainWindow(QMainWindow):
             self.control_arm_status.setText(f"OFF — {reason}")
 
     def _on_tab_changed(self, index: int) -> None:
-        if index != 3 and self.control_enabled:
+        if index != self.control_tab_index and self.control_enabled:
             self._disable_computer_control("Leaving the Computer control tab stopped it.")
 
     def _on_control_mode_changed(self) -> None:
@@ -1438,6 +1758,7 @@ class MainWindow(QMainWindow):
 
     def _on_camera_status(self, message: str, ok: bool) -> None:
         self.camera_ok = ok
+        self.capture_controls_enabled = True
         self.camera_performance_label.setProperty("warning", False)
         self.camera_performance_label.style().unpolish(self.camera_performance_label)
         self.camera_performance_label.style().polish(self.camera_performance_label)
@@ -1457,6 +1778,7 @@ class MainWindow(QMainWindow):
             and self.model_cache.get(self._combo_language(self.use_language))
             is not None
         )
+        self._render_assistance()
         self.record_training_button.setEnabled(ok)
         self.record_evaluation_button.setEnabled(
             ok
@@ -1473,11 +1795,21 @@ class MainWindow(QMainWindow):
         self.capture_progress.setValue(progress)
 
     def _set_capture_buttons(self, enabled: bool) -> None:
+        self.capture_controls_enabled = enabled
         use_has_model = self.model_cache.get(self._combo_language(self.use_language)) is not None
+        assistance_has_model = (
+            self.model_cache.get(self._combo_language(self.assist_language)) is not None
+        )
         evaluation_has_model = (
             self.model_cache.get(self._combo_language(self.eval_language)) is not None
         )
         self.capture_use_button.setEnabled(enabled and self.camera_ok and use_has_model)
+        self.assist_capture_button.setEnabled(
+            enabled
+            and self.camera_ok
+            and assistance_has_model
+            and self.assistance_session.stage == AssistanceStage.READY
+        )
         self.record_training_button.setEnabled(enabled and self.camera_ok)
         self.record_evaluation_button.setEnabled(
             enabled and self.camera_ok and evaluation_has_model
@@ -1491,12 +1823,32 @@ class MainWindow(QMainWindow):
                 "Training needed",
                 "This language has no trained model yet. Open Train model first.",
             )
-            self.tabs.setCurrentIndex(1)
+            self.tabs.setCurrentIndex(self.training_tab_index)
             return
         if self.camera_worker.request_capture({"purpose": "predict", "language": language}):
             self._set_capture_buttons(False)
             self._hide_candidates()
             self.result_label.setText("Get ready")
+
+    def _capture_for_assistance(self) -> None:
+        language = self._combo_language(self.assist_language)
+        if self.model_cache.get(language) is None:
+            QMessageBox.information(
+                self,
+                "Training needed",
+                "This language has no trained camera model yet. Train it first or use the manual correction fallback.",
+            )
+            return
+        if self.assistance_session.stage != AssistanceStage.READY:
+            return
+        if self.camera_worker.request_capture(
+            {"purpose": "assist", "language": language}
+        ):
+            self._set_capture_buttons(False)
+            self.assistance_feedback = "Get ready and perform one supported sign."
+            self.assistance_result_text = "Get ready"
+            self.assistance_result_confidence = None
+            self._render_assistance()
 
     def _capture_training_sample(self) -> None:
         person = self.person_id.text().strip()
@@ -1591,6 +1943,13 @@ class MainWindow(QMainWindow):
             )
             self.capture_state_label.setText("Try again with hands visible")
             self.capture_progress.setValue(0)
+            if purpose == "assist":
+                self.assistance_feedback = (
+                    "No request was accepted. Keep both hands inside the frame and try again."
+                )
+                self.assistance_result_text = "Hands not clear"
+                self.assistance_result_confidence = None
+                self._render_assistance()
             return
 
         if purpose == "train":
@@ -1611,7 +1970,10 @@ class MainWindow(QMainWindow):
         if bundle is None:
             return
         prediction = predict_sequence(bundle, sequence)
-        self._show_prediction(language, prediction)
+        if purpose == "assist":
+            self._show_assistance_prediction(language, prediction)
+        else:
+            self._show_prediction(language, prediction)
         self.capture_progress.setValue(0)
 
     def _record_evaluation_result(
@@ -1673,6 +2035,157 @@ class MainWindow(QMainWindow):
         )
         self.evaluation.write_report(language, pack.sign_ids, model_created_at)
         self._refresh_evaluation_tab()
+
+    def _show_assistance_prediction(self, language: str, prediction: Any) -> None:
+        pack = self.vocabulary.pack(language)
+        self.assistance_result_confidence = float(prediction.confidence)
+        if prediction.accepted:
+            sign = pack.sign_for_id(prediction.label)
+            self.assistance_session.propose_sign(
+                language=language,
+                label=prediction.label,
+                text=sign.output,
+                confidence=float(prediction.confidence),
+            )
+            self.assistance_result_text = sign.output
+            self.assistance_feedback = (
+                "The camera made a suggestion. Confirm it before SignBridge continues."
+            )
+        else:
+            self.assistance_session.reset(language)
+            self.assistance_result_text = "Not sure"
+            self.assistance_feedback = (
+                "Nothing was added or spoken. Record again or use the correction fallback."
+            )
+            alternatives = [
+                label
+                for label, _score in prediction.alternatives
+                if label != UNKNOWN_LABEL
+            ]
+            if alternatives:
+                index = self.assist_manual_sign.findData(alternatives[0])
+                if index >= 0:
+                    self.assist_manual_sign.setCurrentIndex(index)
+        self._render_assistance()
+
+    def _use_manual_assistance_sign(self) -> None:
+        language = self._combo_language(self.assist_language)
+        label = str(self.assist_manual_sign.currentData())
+        pack = self.vocabulary.pack(language)
+        sign = pack.sign_for_id(label)
+        self.assistance_session.propose_sign(
+            language=language,
+            label=label,
+            text=sign.output,
+            confidence=None,
+        )
+        self.assistance_result_text = sign.output
+        self.assistance_result_confidence = None
+        self.assistance_feedback = (
+            "This sign was selected manually. Confirm it before SignBridge continues."
+        )
+        self._render_assistance()
+
+    def _confirm_assistance_sign(self) -> None:
+        try:
+            self.assistance_session.confirm_sign()
+        except ValueError as exc:
+            self.assistance_feedback = str(exc)
+            self._render_assistance()
+            return
+        self.assistance_feedback = "Sign confirmed. Choose the exact request."
+        self._render_assistance()
+
+    def _reject_assistance_sign(self) -> None:
+        try:
+            self.assistance_session.reject_sign()
+        except ValueError:
+            return
+        self.assistance_feedback = "The suggestion was rejected. Record again or choose a sign manually."
+        self.assistance_result_text = "—"
+        self.assistance_result_confidence = None
+        self._render_assistance()
+
+    def _choose_assistance_request(self) -> None:
+        button = self.sender()
+        if not isinstance(button, QPushButton):
+            return
+        option_id = button.property("assistance_option_id")
+        if not option_id:
+            return
+        try:
+            self.assistance_session.choose_request(str(option_id))
+        except ValueError as exc:
+            self.assistance_feedback = str(exc)
+            self._render_assistance()
+            return
+        self.assistance_feedback = (
+            "Read the complete sentence. It still has not been spoken or sent."
+        )
+        self._render_assistance()
+
+    def _change_assistance_request(self) -> None:
+        try:
+            self.assistance_session.change_request()
+        except ValueError:
+            return
+        self.assistance_feedback = "Choose a different request."
+        self._render_assistance()
+
+    def _send_assistance_request(self) -> None:
+        pack = self.vocabulary.pack(self.assistance_session.language)
+        try:
+            turn = self.assistance_session.send_request(pack.locale)
+        except ValueError as exc:
+            self.assistance_feedback = str(exc)
+            self._render_assistance()
+            return
+        self.assistance_feedback = (
+            "Confirmed request shown to staff. Staff can type a short reply below."
+        )
+        self.speech.speak(turn.text, turn.locale)
+        self._render_assistance()
+
+    def _add_assistance_reply(self) -> None:
+        pack = self.vocabulary.pack(self.assistance_session.language)
+        try:
+            self.assistance_session.add_staff_reply(
+                self.assist_staff_reply.text(), pack.locale
+            )
+        except ValueError as exc:
+            self.assistance_feedback = str(exc)
+            self._render_assistance()
+            return
+        self.assist_staff_reply.clear()
+        self.assistance_feedback = "Staff reply added for the signer to read."
+        self._render_assistance()
+
+    def _speak_assistance_request_again(self) -> None:
+        request = next(
+            (
+                turn
+                for turn in reversed(self.assistance_session.turns)
+                if turn.speaker == "Signer"
+            ),
+            None,
+        )
+        if request is not None:
+            self.speech.speak(request.text, request.locale)
+
+    def _complete_assistance_session(self) -> None:
+        try:
+            self.assistance_session.complete()
+        except ValueError as exc:
+            self.assistance_feedback = str(exc)
+            self._render_assistance()
+            return
+        self.assist_staff_reply.clear()
+        self.assistance_result_text = "—"
+        self.assistance_result_confidence = None
+        self.assistance_feedback = (
+            "Session completed and cleared. No conversation was saved."
+        )
+        self._render_assistance()
 
     def _show_prediction(self, language: str, prediction: Any) -> None:
         pack = self.vocabulary.pack(language)

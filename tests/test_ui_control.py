@@ -54,7 +54,7 @@ class ControlUiTests(unittest.TestCase):
         controller = FakeController()
         window.computer_controller = controller
         window.camera_ok = True
-        window.tabs.setCurrentIndex(3)
+        window.tabs.setCurrentIndex(window.control_tab_index)
         window._toggle_computer_control()
 
         for index in range(11):

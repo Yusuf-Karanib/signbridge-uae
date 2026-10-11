@@ -1,6 +1,6 @@
 # SignBridge current-version control guide
 
-This is the short guide for operating the version used at the summit.
+This is the short guide for operating the current version.
 
 ## 1. Start the app
 
@@ -47,13 +47,25 @@ Restart Windows after a driver update, then open SignBridge. A successful fix wi
 - Close browser, Teams, Zoom and Camera windows that may also use the webcam.
 - Move clearly rather than extremely quickly.
 
-## 4. Recognize a sign
+## 4. Use Guided Assistance
+
+1. Open **Guided assistance** and choose ASL or Emirati Sign Language.
+2. Press **Record a request sign**, wait for the countdown and perform one supported sign.
+3. Confirm the camera suggestion. If it is wrong or says **Not sure**, retry or use **Correction fallback**.
+4. Choose the exact request.
+5. Read the complete sentence, then press **Confirm and show to staff**.
+6. Staff can type a reply and press **Show reply**.
+7. Press **Complete and clear session** before the next person uses the app.
+
+SignBridge will not speak from this screen until the sign and the complete request have both been confirmed. The choices after a sign are predefined buttons; they are not a translated sentence.
+
+## 5. Recognize a sign
 
 The **Recognize**, **Train model** and **Final test** tabs are for the 8-sign language prototype. Choose ASL or Emirati Sign Language, press the recording button, wait for the countdown and perform one sign while the bar fills.
 
 This is separate from computer control.
 
-## 5. Turn computer control on
+## 6. Turn computer control on
 
 The control gestures are generic shortcuts. They are not ASL or Emirati signs.
 
@@ -65,7 +77,7 @@ The control gestures are generic shortcuts. They are not ASL or Emirati signs.
 
 Leaving the Computer control tab also stops it.
 
-## 6. Volume and slides mode
+## 7. Volume and slides mode
 
 | Gesture | Action |
 | --- | --- |
@@ -78,7 +90,7 @@ Hold the gesture until the screen says **steady**. Each hold sends only one comm
 
 For PowerPoint, start the slideshow first and leave it as the active window. SignBridge can remain behind it while the camera continues running.
 
-## 7. Mouse mode
+## 8. Mouse mode
 
 1. Arm control with an open palm.
 2. Raise one index finger. The first detection anchors to the pointer's current position, so it should not jump across the screen.
@@ -88,7 +100,7 @@ For PowerPoint, start the slideshow first and leave it as the active window. Sig
 
 Open palms and random hand movement do not move the pointer. Movement is relative, slowed and limited per frame.
 
-## 8. If control feels unstable
+## 9. If control feels unstable
 
 Press **Stop computer control** first. Then:
 
@@ -101,7 +113,7 @@ Press **Stop computer control** first. Then:
 
 The revised mouse mode no longer maps one hand position directly to the whole screen. Pointing starts from the pointer's current position, tiny movements are ignored, large steps are limited, and lowering the index finger pauses movement. This reduces jumping, but the 160×120 camera feed can still limit accuracy.
 
-## 9. If the camera shows coloured static
+## 10. If the camera shows coloured static
 
 The older version used a low-latency buffer setting that this Realtek camera cannot handle. That setting has been removed. The current version also ignores obvious rainbow-noise frames and reconnects automatically up to three times.
 
