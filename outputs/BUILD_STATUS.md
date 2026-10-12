@@ -5,9 +5,11 @@
 - Responsive two-hand preview using Google's dedicated MediaPipe hand tracker.
 - Camera 0/1/2 selection, safe restart and visible preview/hand-tracking FPS.
 - 4 ASL signs and 4 Emirati Sign Language signs.
-- A Guided Assistance workflow that turns a confirmed sign into one predefined reception-desk request.
-- Separate confirmation of the detected sign and complete request before any guided speech.
-- A manual correction fallback, typed staff replies and temporary session clearing.
+- A controlled reception agent that turns a confirmed sign into one predefined request and safe local action.
+- Separate confirmation of the detected sign and complete request before any agent action or guided speech.
+- Local reception task IDs for directions, appointments, interpreter requests, general help and water help.
+- Short-session memory, including showing an earlier staff reply after the `Again` or `Repeat` request.
+- A manual correction fallback, typed staff replies, another-sign continuation and temporary session clearing.
 - Optional Windows computer control for volume, slides, pointer and click.
 - Computer control starts off, requires a 1.5-second open-palm hold and stops when its tab is left.
 - Separate training model for each language.
@@ -20,7 +22,7 @@
 - A separate **Final test** area that blocks training people and keeps results out of training.
 - Reports for accuracy, false acceptance, unknown rejection, test conditions and model processing time.
 
-A real webcam capture previously produced the expected 32-step landmark sequence. The new hand model was also tested on the supplied gesture-control video and found hands in 105 of 120 sampled frames. The preview runs separately from sign capture so the larger body model does not slow normal viewing. All 31 automated tests pass, including confirmation safety, temporary session clearing and the resizable layout. A startup/shutdown check passed on 12 October 2026, but camera 0 was busy or unavailable during that check. Recheck the live camera after closing every browser, meeting or Camera app that may use it.
+A real webcam capture previously produced the expected 32-step landmark sequence. The new hand model was also tested on the supplied gesture-control video and found hands in 105 of 120 sampled frames. The preview runs separately from sign capture so the larger body model does not slow normal viewing. All 37 automated tests pass, covering confirmation safety, action selection, conversation memory, temporary session clearing and the resizable layout. A startup/shutdown check passed on 12 October 2026, but camera 0 was busy or unavailable during that check. Recheck the live camera after closing every browser, meeting or Camera app that may use it.
 
 ## Still required before an accuracy or accessibility claim
 
@@ -30,6 +32,6 @@ A real webcam capture previously produced the expected 32-step landmark sequence
 4. Train both language models.
 5. Test at least one new person who was not used for training; two or three is better.
 6. Keep only signs that pass the test plan.
-7. Test the complete Guided Assistance task with target users and measure corrections, false actions and completion time.
+7. Test complete SignBridge agent tasks with target users and measure corrections, false actions and completion time.
 
-A personalized ASL model trained only on Yusuf exists. It has not been validated on unseen people, and its **Help** and **OTHER / NO SIGN** classes have much less data than the other classes. No Emirati model exists yet. This remains an 8-sign isolated-sign prototype, not a full sign-language translator. The generic control gestures use Google's separate pretrained model and must not be described as sign-language translation.
+A personalized ASL model trained only on Yusuf exists. It has not been validated on unseen people, and its **Help** and **OTHER / NO SIGN** classes have much less data than the other classes. No Emirati model exists yet. The agent's task numbers exist only inside the running app; no outside reception, booking or interpreter system is connected. This remains an 8-sign isolated-sign prototype, not a full sign-language translator.

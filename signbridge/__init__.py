@@ -1,4 +1,4 @@
-"""SignBridge UAE: small, testable isolated-sign recognition prototype."""
+"""SignBridge UAE: isolated-sign recognition with a controlled reception agent."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 

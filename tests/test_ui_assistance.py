@@ -40,9 +40,23 @@ class AssistanceUiTests(unittest.TestCase):
             window.assistance_session.choose_request("directions")
             window._render_assistance()
             speak.assert_not_called()
+            self.assertEqual(window.assistance_action_results, [])
 
             window._send_assistance_request()
             speak.assert_called_once_with("I need help with directions.", "en-US")
+            self.assertEqual(len(window.assistance_action_results), 1)
+            action = window.assistance_action_results[0]
+            self.assertEqual(action.action_id, "directions")
+            self.assertFalse(action.external_action_taken)
+            self.assertEqual(
+                window.assistance_session.turns[-1].speaker, "Agent"
+            )
+            self.assertIn(action.task_id, window.reception_agent.pending_tasks)
+
+            window._complete_assistance_session()
+            self.assertEqual(window.assistance_action_results, [])
+            self.assertEqual(window.assistance_session.turns, [])
+            self.assertEqual(window.reception_agent.pending_tasks, {})
 
         window.close()
 
@@ -64,6 +78,43 @@ class AssistanceUiTests(unittest.TestCase):
         self.assertEqual(window.assist_result_label.text(), "Not sure")
         self.assertFalse(window.assist_confirm_sign_button.isVisible())
         speak.assert_not_called()
+        window.close()
+
+    def test_second_turn_can_use_the_previous_staff_reply(self) -> None:
+        window = MainWindow()
+
+        with patch.object(window.speech, "speak"):
+            window._use_manual_assistance_sign()
+            window._confirm_assistance_sign()
+            window.assistance_session.choose_request("start")
+            window._send_assistance_request()
+            window.assist_staff_reply.setText("Registration is on the left.")
+            window._add_assistance_reply()
+            window._continue_assistance_session()
+
+            remembered_turns = list(window.assistance_session.turns)
+            uncertain = Prediction(
+                label="help",
+                confidence=0.43,
+                margin=0.01,
+                accepted=False,
+                alternatives=(("help", 0.43), ("hello", 0.42)),
+            )
+            window._show_assistance_prediction("asl", uncertain)
+            self.assertEqual(window.assistance_session.turns, remembered_turns)
+            self.assertEqual(window.assistance_session.stage, AssistanceStage.READY)
+
+            again_index = window.assist_manual_sign.findData("again")
+            window.assist_manual_sign.setCurrentIndex(again_index)
+            window._use_manual_assistance_sign()
+            window._confirm_assistance_sign()
+            window.assistance_session.choose_request("show_again")
+            window._send_assistance_request()
+
+        latest_action = window.assistance_action_results[-1]
+        self.assertTrue(latest_action.used_conversation_memory)
+        self.assertIn("Registration is on the left", latest_action.message)
+        self.assertEqual(window.assistance_session.stage, AssistanceStage.WAITING_REPLY)
         window.close()
 
     def test_default_layout_leaves_room_for_camera_and_guided_controls(self) -> None:

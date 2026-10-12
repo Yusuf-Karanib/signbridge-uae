@@ -65,6 +65,28 @@ class AssistanceSessionTests(unittest.TestCase):
         self.assertIsNone(session.proposed_label)
         self.assertEqual(session.turns, [])
 
+    def test_continue_keeps_conversation_memory_until_completion(self) -> None:
+        session = AssistanceSession()
+        session.propose_sign(
+            language="asl", label="help", text="Help", confidence=0.90
+        )
+        session.confirm_sign()
+        session.choose_request("directions")
+        session.send_request("en-US")
+        session.add_agent_message("A local directions task was created.", "en-US")
+        session.add_staff_reply("Registration is on the left.", "en-US")
+
+        session.continue_conversation()
+
+        self.assertEqual(session.stage, AssistanceStage.READY)
+        self.assertEqual(len(session.turns), 3)
+        self.assertEqual(session.turns[-1].speaker, "Staff")
+        self.assertIsNone(session.selected_option)
+
+        cleared_turns = session.complete()
+        self.assertEqual(cleared_turns, 3)
+        self.assertEqual(session.turns, [])
+
     def test_every_current_sign_has_a_guided_request(self) -> None:
         vocabulary = Vocabulary.load()
 

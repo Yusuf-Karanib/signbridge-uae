@@ -6,9 +6,9 @@ For a short operating manual for the latest camera and computer controls, read `
 
 ## Read these three parts first
 
-1. **What exists now:** the application, improved hand tracking, training system, testing system, text, speech, Guided Assistance and an optional computer-control experiment are built. A personalized ASL model trained only on Yusuf exists. No Emirati model exists yet.
+1. **What exists now:** the application, improved hand tracking, training system, testing system, text, speech, a controlled reception agent and an optional computer-control experiment are built. A personalized ASL model trained only on Yusuf exists. No Emirati model exists yet.
 2. **What must happen next:** fluent signers must validate the 8 sign forms, more real people must record examples, the Emirati model must be trained, the ASL model must be strengthened, and completely new people must test both models.
-3. **What it is:** a bilingual prototype that recognizes one of 4 ASL signs or one of 4 Emirati signs during a short prompted recording. Guided Assistance can turn a confirmed result into one predefined reception-desk request. It is not a full sign-language or sentence translator.
+3. **What it is:** a bilingual prototype that recognizes one of 4 ASL signs or one of 4 Emirati signs during a short prompted recording. The SignBridge agent can turn confirmed results into predefined reception-desk requests, run safe local actions and remember a short session. It is not a full sign-language or sentence translator.
 
 The difference between **software working** and **recognition working** is important. The software opens and the camera tracks correctly. Recognition cannot work until suitable human examples are recorded and the models are trained.
 
@@ -156,20 +156,22 @@ A confidence score is not proof. It only describes how strongly this model prefe
 
 ## 8. The five application screens
 
-### Guided Assistance
+### SignBridge agent
 
-This is now the first screen and the main product demonstration. It completes one small communication loop instead of stopping at a sign label.
+This is the first screen and the main product demonstration. It completes a small, controlled communication-and-action loop instead of stopping at a sign label.
 
 1. Choose ASL or Emirati Sign Language.
 2. Press **Record a request sign** and perform one supported sign.
 3. Read the camera suggestion and press **Yes, this sign is correct** or **No, try again**.
 4. If the camera is unsure or wrong, use **Correction fallback** to select the intended supported sign manually. Manual selection still requires confirmation.
 5. Choose the exact follow-up request. These choices are buttons; the camera did not translate a sentence.
-6. Read the complete sentence and press **Confirm and show to staff**. Only this final confirmation allows speech.
-7. Staff can type a short reply for the signer to read.
-8. Press **Complete and clear session**. The temporary conversation disappears and is not written to disk.
+6. Read the complete sentence and press **Confirm and show to staff**. Only this final confirmation allows speech and an action.
+7. Read the **Agent action** card. Some requests create a local task number such as `SB-001`.
+8. Staff can type a short reply for the signer to read.
+9. Press **Continue with another sign** to keep the conversation in memory. `Again` or `Repeat` can then show the earlier staff reply.
+10. Press **Complete task and clear session**. The temporary conversation disappears and is not written to disk.
 
-The first version uses a small rule-based workflow, not a language model. That makes every possible request visible, predictable and testable. “Show to staff” means display and speak inside SignBridge; it does not contact staff, create an external ticket or summon an interpreter.
+The first version uses a small rule-based action engine, not a chatbot. That makes every possible action visible, predictable and testable. Local task numbers exist only inside the running app. “Show to staff” does not contact staff, change a booking or summon an interpreter outside SignBridge.
 
 ### Recognize
 
@@ -403,9 +405,9 @@ Do not repeatedly perform signs before pressing Record. This prototype only clas
 
 User corrections do not secretly train the model. New learning only occurs through the training screen followed by retraining.
 
-### How to use Guided Assistance
+### How to use the SignBridge agent
 
-Use **Guided Assistance** when two people want to complete one small reception-desk interaction. An accepted camera prediction is only a suggestion. SignBridge remains silent until the signer confirms the sign, chooses a follow-up request and confirms the complete sentence. A rejected prediction cannot advance the workflow. Finish by clearing the session before the next person uses the app.
+Use **SignBridge agent** for a short reception-desk interaction. An accepted camera prediction is only a suggestion. SignBridge remains silent and takes no action until the signer confirms the sign, chooses a follow-up request and confirms the complete sentence. A rejected prediction cannot advance the workflow or erase earlier conversation memory. Staff can reply, then the person can continue with another supported sign. Finish by clearing the session before the next person uses the app.
 
 ## 14. How to run the final test
 
@@ -502,7 +504,10 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 - Final-test reports stay separated by model version.
 - The vocabulary contains two separate four-sign packs.
 - The desktop window loads with all five tabs.
-- Guided Assistance blocks speech until the sign and complete request are confirmed.
+- The SignBridge agent blocks speech and actions until the sign and complete request are confirmed.
+- Every supported request maps to a tested action handler.
+- Local task results state that no outside service was contacted.
+- A second turn can reuse an earlier staff reply.
 - Rejected predictions cannot advance the guided session.
 - Completing a guided session clears its temporary conversation.
 - Both official MediaPipe models load successfully.
@@ -572,17 +577,18 @@ Extract it, run `setup.ps1` once, then double-click `Start SignBridge.vbs`. If t
 
 Use this wording:
 
-> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. Its Guided Assistance mode asks the signer to confirm the result, choose one predefined reception-desk request and confirm the full sentence before speech. Staff can type a reply, and the temporary session is cleared afterward. It is not a complete sign-language translator.
+> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. Its controlled reception agent asks the signer to confirm the result and complete request before speech or action. It can create a local reception task, remember staff replies between turns and clear the temporary session afterward. Outside services are not connected, and it is not a complete sign-language translator.
 
 ### Suggested demonstration
 
 1. State the limitation before demonstrating.
-2. Open **Guided Assistance** and explicitly choose ASL or Emirati Sign Language.
+2. Open **SignBridge agent** and explicitly choose ASL or Emirati Sign Language.
 3. Record one validated sign and show that SignBridge waits for confirmation.
 4. Choose the exact request, confirm the sentence and let SignBridge speak it.
-5. Type a short staff reply and complete the session.
-6. Show an unsupported movement producing “Not sure” without advancing or speaking.
-7. Briefly show the Final test report and explain that new people were kept out of training.
+5. Show the local agent action, type a staff reply and continue with an `Again` or `Repeat` turn.
+6. Complete and clear the session.
+7. Show an unsupported movement producing “Not sure” without advancing, speaking or acting.
+8. Briefly show the Final test report and explain that new people were kept out of training.
 
 Only quote an accuracy number produced by the untouched final-test process. Never quote training accuracy as product accuracy.
 
@@ -594,11 +600,15 @@ Yes. A pretrained vision model finds landmarks, and locally trained machine lear
 
 ### Does it translate sign language?
 
-No. It recognizes a limited set of isolated, prompted signs. Guided Assistance uses a confirmed sign to open predefined buttons; it does not convert free signing into sentences. Full translation is a larger future project.
+No. It recognizes a limited set of isolated, prompted signs. The agent uses a confirmed sign to open predefined buttons; it does not convert free signing into sentences. Full translation is a larger future project.
 
-### Why call Guided Assistance an agent?
+### Why call it an agent?
 
-It follows one controlled loop: observe a supported sign, reject or ask for confirmation, remember the current request, guide the next choice, speak only after approval, collect a staff reply and stop by clearing the session. It is not a general autonomous agent, and it deliberately does not use a chatbot in this first version.
+It follows a controlled loop: observe a supported sign, ask for confirmation, choose an allowed function, run that function, remember the session, use a staff reply in a later turn and stop by clearing the task. The functions are local and deterministic in this version. It is not a general autonomous agent, and it deliberately does not use a chatbot yet.
+
+### What actions can it perform now?
+
+It can start a session, create local tasks for directions, appointment help, interpreter help, general help or water help, show a waiting state, and recover an earlier staff reply after an `Again` or `Repeat` request. These actions are visible inside SignBridge. It cannot contact a real staff system, booking system or interpreter service until one is deliberately connected and tested.
 
 ### Does it work offline?
 
@@ -645,7 +655,7 @@ Do these in order:
 4. Choose the honest data plan above. Reduce the sign list if the available data is too small.
 5. Train both language models.
 6. Run the full final test with two or three untouched people.
-7. Test complete Guided Assistance tasks and record false actions, corrections and completion time.
+7. Test complete SignBridge agent tasks, including a second turn, and record false actions, corrections and completion time.
 8. Remove, replace or postpone signs that miss the targets.
 9. Ask Deaf or hard-of-hearing users and fluent signers to review whether the guided interaction is actually useful.
 10. Back up `data/`, `models/` and the full project folder.

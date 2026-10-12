@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from signbridge.agent import AgentActionResult, AgentActionStatus, ReceptionAgent
 from signbridge.assistance import AssistanceSession, AssistanceStage
 from signbridge.camera import CameraWorker
 from signbridge.classifier import load_model, predict_sequence, train_language_model
@@ -276,7 +277,9 @@ class MainWindow(QMainWindow):
         }
         self.history_entries: list[dict[str, str]] = []
         self.last_spoken: tuple[str, str] | None = None
+        self.reception_agent = ReceptionAgent()
         self.assistance_session = AssistanceSession()
+        self.assistance_action_results: list[AgentActionResult] = []
         self.assistance_feedback = "Ready for a new request"
         self.assistance_result_text = "—"
         self.assistance_result_confidence: float | None = None
@@ -319,7 +322,7 @@ class MainWindow(QMainWindow):
         title = QLabel("SignBridge UAE")
         title.setObjectName("title")
         self.subtitle_label = QLabel(
-            "8-sign bilingual prototype  •  confirmed request  →  text  →  speech"
+            "8-sign bilingual prototype  •  confirm intent  →  run safe action  →  reply"
         )
         self.subtitle_label.setObjectName("subtitle")
         title_group.addWidget(title)
@@ -338,7 +341,7 @@ class MainWindow(QMainWindow):
         root.addLayout(header)
 
         scope = QLabel(
-            "Prototype scope: 4 ASL signs + 4 Emirati signs. Guided Assistance completes one supported request at a time — not full conversation translation."
+            "Prototype scope: 4 ASL signs + 4 Emirati signs. The controlled agent remembers a short session and runs local reception actions — not full sign-language translation."
         )
         scope.setWordWrap(True)
         scope.setObjectName("warning")
@@ -423,7 +426,7 @@ class MainWindow(QMainWindow):
         self.tabs.tabBar().setExpanding(True)
         self.tabs.setDocumentMode(True)
         self.assistance_tab_index = self.tabs.addTab(
-            self._build_assistance_tab(), "Guided assistance"
+            self._build_assistance_tab(), "SignBridge agent"
         )
         self.recognize_tab_index = self.tabs.addTab(self._build_use_tab(), "Recognize")
         self.training_tab_index = self.tabs.addTab(
@@ -595,14 +598,14 @@ class MainWindow(QMainWindow):
         tab, layout = self._scroll_page()
 
         notice = QLabel(
-            "Guided Assistance handles one short, supported request. It is not full sign-language translation and it does not replace an interpreter."
+            "This is a controlled reception agent. It understands only supported, confirmed requests. Local actions work now; booking, messaging and interpreter services are not connected."
         )
         notice.setWordWrap(True)
         notice.setObjectName("warning")
         layout.addWidget(notice)
 
         language_card, language_layout = self._section_card(
-            "1. Prepare the request",
+            "1. Recognize the request",
             "Choose the sign language. The camera suggests a sign, but nothing is spoken until you confirm it.",
         )
         self.assist_language = self._language_combo()
@@ -618,7 +621,7 @@ class MainWindow(QMainWindow):
         result_layout = QVBoxLayout(result_card)
         result_layout.setContentsMargins(18, 16, 18, 18)
         result_layout.setSpacing(9)
-        self.assist_step_label = QLabel("Step 1 of 4 — record one supported sign")
+        self.assist_step_label = QLabel("Step 1 of 5 — record one supported sign")
         self.assist_step_label.setObjectName("sectionTitle")
         result_layout.addWidget(self.assist_step_label)
         self.assist_feedback_label = QLabel("Ready for a new request")
@@ -701,9 +704,32 @@ class MainWindow(QMainWindow):
         request_layout.addLayout(request_buttons)
         layout.addWidget(self.assist_request_card)
 
+        self.assist_action_card, action_layout = self._section_card(
+            "4. Agent action",
+            "The confirmed request chooses one safe function. External services remain off until a real connection is added and tested.",
+        )
+        self.assist_action_status = QLabel("No action yet")
+        self.assist_action_status.setObjectName("success")
+        self.assist_action_status.setWordWrap(True)
+        action_layout.addWidget(self.assist_action_status)
+        self.assist_action_title = QLabel("—")
+        self.assist_action_title.setObjectName("sectionTitle")
+        self.assist_action_title.setWordWrap(True)
+        action_layout.addWidget(self.assist_action_title)
+        self.assist_action_message = QLabel("—")
+        self.assist_action_message.setWordWrap(True)
+        action_layout.addWidget(self.assist_action_message)
+        self.assist_action_safety = QLabel(
+            "Local prototype action: no outside service was contacted."
+        )
+        self.assist_action_safety.setObjectName("warning")
+        self.assist_action_safety.setWordWrap(True)
+        action_layout.addWidget(self.assist_action_safety)
+        layout.addWidget(self.assist_action_card)
+
         self.assist_conversation_card, conversation_layout = self._section_card(
-            "4. Staff reply",
-            "Staff can type a short reply for the signer to read. Nothing is uploaded or sent outside this app.",
+            "5. Continue the conversation",
+            "Staff can type a short reply. The agent keeps this session in memory so the person can sign again or ask to see the reply again.",
         )
         self.assist_conversation_list = QListWidget()
         self.assist_conversation_list.setMinimumHeight(110)
@@ -722,11 +748,14 @@ class MainWindow(QMainWindow):
         session_buttons = QHBoxLayout()
         session_buttons.setSpacing(8)
         self.assist_speak_again_button = QPushButton("Speak request again")
-        self.assist_complete_button = QPushButton("Complete and clear session")
-        self.assist_complete_button.setObjectName("danger")
+        self.assist_continue_button = QPushButton("Continue with another sign")
+        self.assist_continue_button.setObjectName("primary")
         session_buttons.addWidget(self.assist_speak_again_button, 1)
-        session_buttons.addWidget(self.assist_complete_button, 1)
+        session_buttons.addWidget(self.assist_continue_button, 1)
         conversation_layout.addLayout(session_buttons)
+        self.assist_complete_button = QPushButton("Complete task and clear session")
+        self.assist_complete_button.setObjectName("danger")
+        conversation_layout.addWidget(self.assist_complete_button)
         self.assist_voice_status = QLabel("Voice ready")
         self.assist_voice_status.setObjectName("muted")
         conversation_layout.addWidget(self.assist_voice_status)
@@ -1007,6 +1036,9 @@ class MainWindow(QMainWindow):
         self.assist_speak_again_button.clicked.connect(
             self._speak_assistance_request_again
         )
+        self.assist_continue_button.clicked.connect(
+            self._continue_assistance_session
+        )
         self.assist_complete_button.clicked.connect(self._complete_assistance_session)
         self.assist_staff_reply.returnPressed.connect(self._add_assistance_reply)
         self.record_training_button.clicked.connect(self._capture_training_sample)
@@ -1054,10 +1086,10 @@ class MainWindow(QMainWindow):
         tabs_width = self.tabs.width()
         compact = self.width() < 1180 or (tabs_width > 0 and tabs_width < 760)
         tab_names = (
-            ("Assist", "Use", "Train", "Test", "PC")
+            ("Agent", "Use", "Train", "Test", "PC")
             if compact
             else (
-                "Guided assistance",
+                "SignBridge agent",
                 "Recognize",
                 "Train model",
                 "Final test",
@@ -1140,6 +1172,7 @@ class MainWindow(QMainWindow):
 
     def _on_assistance_language_changed(self) -> None:
         language = self._combo_language(self.assist_language)
+        self._clear_assistance_actions()
         self.assistance_session.reset(language)
         self.assistance_feedback = "Language changed. Ready for a new request."
         self.assistance_result_text = "—"
@@ -1245,27 +1278,71 @@ class MainWindow(QMainWindow):
             self.assist_request_preview.setText(session.selected_option.request_text)
             self.assist_request_preview.setLayoutDirection(direction)
 
-        show_conversation = stage == AssistanceStage.WAITING_REPLY
+        latest_action = (
+            self.assistance_action_results[-1]
+            if self.assistance_action_results
+            else None
+        )
+        self.assist_action_card.setVisible(latest_action is not None)
+        if latest_action is not None:
+            status_text = {
+                AgentActionStatus.COMPLETED: "Completed inside SignBridge",
+                AgentActionStatus.WAITING_FOR_STAFF: "Waiting for staff",
+                AgentActionStatus.LOCAL_TASK: (
+                    f"Local task {latest_action.task_id} created"
+                ),
+            }[latest_action.status]
+            self.assist_action_status.setText(status_text)
+            self.assist_action_title.setText(latest_action.title)
+            self.assist_action_title.setLayoutDirection(direction)
+            self.assist_action_message.setText(latest_action.message)
+            self.assist_action_message.setLayoutDirection(direction)
+
+        show_conversation = bool(session.turns)
         self.assist_conversation_card.setVisible(show_conversation)
         self.assist_conversation_list.clear()
         for turn in session.turns:
-            prefix = "Signer" if turn.speaker == "Signer" else "Staff"
+            prefix = {
+                "Signer": "Signer",
+                "Agent": "Agent",
+                "Staff": "Staff",
+            }.get(turn.speaker, turn.speaker)
             item = QListWidgetItem(f"{prefix}: {turn.text}")
             if turn.locale.startswith("ar"):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight)
             self.assist_conversation_list.addItem(item)
         self.assist_conversation_list.scrollToBottom()
+        waiting_for_reply = stage == AssistanceStage.WAITING_REPLY
+        self.assist_staff_reply.setEnabled(waiting_for_reply)
+        self.assist_add_reply_button.setEnabled(waiting_for_reply)
+        self.assist_continue_button.setEnabled(waiting_for_reply)
+        self.assist_complete_button.setEnabled(
+            bool(session.turns)
+            and stage in (AssistanceStage.READY, AssistanceStage.WAITING_REPLY)
+        )
+        self.assist_speak_again_button.setEnabled(
+            any(turn.speaker == "Signer" for turn in session.turns)
+        )
 
         if stage == AssistanceStage.READY:
-            self.assist_step_label.setText("Step 1 of 4 — record one supported sign")
+            if session.turns:
+                self.assist_step_label.setText(
+                    "Next turn — record another supported sign"
+                )
+            else:
+                self.assist_step_label.setText(
+                    "Step 1 of 5 — record one supported sign"
+                )
         elif stage == AssistanceStage.CONFIRM_SIGN:
             self.assist_step_label.setText("Confirm the detected sign")
         elif stage == AssistanceStage.CHOOSE_REQUEST:
-            self.assist_step_label.setText("Step 2 of 4 — choose the request")
+            self.assist_step_label.setText("Step 2 of 5 — choose the request")
         elif stage == AssistanceStage.CONFIRM_REQUEST:
-            self.assist_step_label.setText("Step 3 of 4 — confirm the full request")
+            self.assist_step_label.setText("Step 3 of 5 — confirm the full request")
         else:
-            self.assist_step_label.setText("Step 4 of 4 — staff can reply")
+            self.assist_step_label.setText(
+                "Step 5 of 5 — staff can reply or the person can continue"
+            )
 
     def _refresh_training_tab(self) -> None:
         language = self._combo_language(self.train_language)
@@ -2052,10 +2129,9 @@ class MainWindow(QMainWindow):
                 "The camera made a suggestion. Confirm it before SignBridge continues."
             )
         else:
-            self.assistance_session.reset(language)
             self.assistance_result_text = "Not sure"
             self.assistance_feedback = (
-                "Nothing was added or spoken. Record again or use the correction fallback."
+                "Nothing was added, spoken or acted on. Conversation memory was kept. Record again or use the correction fallback."
             )
             alternatives = [
                 label
@@ -2134,15 +2210,36 @@ class MainWindow(QMainWindow):
 
     def _send_assistance_request(self) -> None:
         pack = self.vocabulary.pack(self.assistance_session.language)
+        selected_option = self.assistance_session.selected_option
         try:
             turn = self.assistance_session.send_request(pack.locale)
+            if selected_option is None:
+                raise ValueError("Choose and confirm a request before running the agent")
+            action_result = self.reception_agent.execute(
+                selected_option,
+                language=self.assistance_session.language,
+                conversation=self.assistance_session.turns,
+            )
+            self.assistance_session.add_agent_message(
+                action_result.message, pack.locale
+            )
         except ValueError as exc:
             self.assistance_feedback = str(exc)
             self._render_assistance()
             return
-        self.assistance_feedback = (
-            "Confirmed request shown to staff. Staff can type a short reply below."
-        )
+        self.assistance_action_results.append(action_result)
+        if action_result.status == AgentActionStatus.LOCAL_TASK:
+            self.assistance_feedback = (
+                "Request confirmed. The agent created a local task for staff."
+            )
+        elif action_result.used_conversation_memory:
+            self.assistance_feedback = (
+                "Request confirmed. The agent found the earlier staff reply in this session."
+            )
+        else:
+            self.assistance_feedback = (
+                "Request confirmed. The agent ran the matching safe action."
+            )
         self.speech.speak(turn.text, turn.locale)
         self._render_assistance()
 
@@ -2172,6 +2269,30 @@ class MainWindow(QMainWindow):
         if request is not None:
             self.speech.speak(request.text, request.locale)
 
+    def _continue_assistance_session(self) -> None:
+        try:
+            self.assistance_session.continue_conversation()
+        except ValueError as exc:
+            self.assistance_feedback = str(exc)
+            self._render_assistance()
+            return
+        self.assist_staff_reply.clear()
+        self.assistance_result_text = "—"
+        self.assistance_result_confidence = None
+        self.assistance_feedback = (
+            "Conversation memory kept. Record the next supported sign."
+        )
+        self._render_assistance()
+
+    def _clear_assistance_actions(self) -> None:
+        task_ids = (
+            result.task_id
+            for result in self.assistance_action_results
+            if result.task_id is not None
+        )
+        self.reception_agent.complete_tasks(task_ids)
+        self.assistance_action_results.clear()
+
     def _complete_assistance_session(self) -> None:
         try:
             self.assistance_session.complete()
@@ -2179,6 +2300,7 @@ class MainWindow(QMainWindow):
             self.assistance_feedback = str(exc)
             self._render_assistance()
             return
+        self._clear_assistance_actions()
         self.assist_staff_reply.clear()
         self.assistance_result_text = "—"
         self.assistance_result_confidence = None

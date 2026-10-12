@@ -188,8 +188,30 @@ class AssistanceSession:
         self.turns.append(turn)
         return turn
 
-    def complete(self) -> int:
+    def add_agent_message(self, text: str, locale: str) -> ConversationTurn:
         if self.stage != AssistanceStage.WAITING_REPLY:
+            raise ValueError("Send a confirmed request before running an agent action")
+        clean_text = text.strip()
+        if not clean_text:
+            raise ValueError("The agent action returned an empty message")
+        turn = ConversationTurn(speaker="Agent", text=clean_text, locale=locale)
+        self.turns.append(turn)
+        return turn
+
+    def continue_conversation(self) -> None:
+        if self.stage != AssistanceStage.WAITING_REPLY:
+            raise ValueError("Finish the current request before continuing")
+        self.proposed_label = None
+        self.proposed_text = None
+        self.proposed_confidence = None
+        self.selected_option = None
+        self.stage = AssistanceStage.READY
+
+    def complete(self) -> int:
+        if not self.turns or self.stage not in (
+            AssistanceStage.READY,
+            AssistanceStage.WAITING_REPLY,
+        ):
             raise ValueError("A confirmed request must be sent before completing the session")
         turn_count = len(self.turns)
         self.reset()
