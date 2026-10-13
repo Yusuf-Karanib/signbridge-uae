@@ -20,11 +20,11 @@ read `docs/CONTROL_GUIDE.md`.
 2. Double-click `Start SignBridge.vbs`. It opens the app without a terminal window.
 3. Open **Train model**.
 4. Choose a language and enter a short Person ID.
-5. For a personalized demo, record 20 to 30 varied examples per class from the demonstrator. For unseen-person testing, use several training people and keep different people for Final test.
+5. Record 20 to 30 varied examples per class from the demonstrator, or use **Import short video** for a consented 2–5 second clip containing exactly one selected sign. For unseen-person testing, use several training people and keep different people for Final test.
 6. Press **Train or update this language model**.
 7. Open **SignBridge agent** and record one sign.
 8. Confirm the camera suggestion, choose the exact request, and confirm the full sentence.
-9. Check the agent action. Let staff type a reply, then continue with another sign or complete the task.
+9. Open **Staff desk** to accept the saved task, type a reply and complete it. You can optionally connect a tested HTTPS Slack/Teams-compatible webhook.
 10. Use **Final test** with people who were never used for training.
 
 The camera panel shows live FPS. If the default webcam is wrong or busy, choose
@@ -57,12 +57,13 @@ The exact checklist is in `docs/TEST_PLAN.md`.
 5. A separate classifier is trained for each sign language.
 6. Low-confidence results are rejected instead of guessed.
 7. The SignBridge agent requires confirmation of both the sign and the complete request before speech or action.
-8. A small rule-based action engine creates local reception tasks and can use an earlier staff reply during the same session.
-9. Completing the task clears all temporary conversation text and closes its local tasks.
+8. A small rule-based action engine creates persistent local reception tasks and can use an earlier staff reply during the same session.
+9. The Staff desk tracks pending, accepted and completed tasks. An optional webhook can notify a real staff channel only after it is explicitly configured and enabled.
+10. Completing the signer session clears temporary conversation text and closes its related local tasks.
 
 Speech is manual by default so a wrong result is not spoken automatically. Automatic speech can be enabled for a controlled demo.
 
-Only landmark coordinates are stored by the training screen. Camera video is not stored.
+Only landmark coordinates are stored by the training screen. Imported videos are read once and are not copied into SignBridge.
 
 ## Current vocabulary
 
@@ -89,7 +90,7 @@ The dataset and licence comparison is in `docs/RESEARCH_BASIS.md`.
 
 - Isolated signs only.
 - The agent supports a short conversation made from predefined, confirmed requests.
-- Local task IDs are demonstrations inside the running app. It does not contact staff, change a booking or request an interpreter outside the app.
+- Local task IDs persist on this computer. They do not change a booking or request an interpreter. A staff notification is external only when you deliberately configure and enable a webhook.
 - Facial grammar is not classified in this version.
 - Source entries are linked, but recorded performances remain unverified until fluent signers review them.
 - Confidence is a model score, not proof.

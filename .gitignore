@@ -10,6 +10,9 @@ data/samples/
 data/trash/
 data/validation.json
 data/evaluations/
+data/agent_tasks.json
+data/agent_settings.json
+data/*.tmp
 models/*.joblib
 models/*.json
 

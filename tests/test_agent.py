@@ -4,6 +4,7 @@ import unittest
 
 from signbridge.agent import ACTION_IDS, AgentActionStatus, ReceptionAgent
 from signbridge.assistance import ConversationTurn, REQUEST_OPTIONS, RequestOption
+from signbridge.tasks import TaskStore
 
 
 class ReceptionAgentTests(unittest.TestCase):
@@ -18,7 +19,7 @@ class ReceptionAgentTests(unittest.TestCase):
         self.assertEqual(request_ids, set(ACTION_IDS))
 
     def test_local_task_is_honest_and_can_be_completed(self) -> None:
-        agent = ReceptionAgent()
+        agent = ReceptionAgent(TaskStore.in_memory())
         option = RequestOption(
             id="interpreter",
             button_text="Interpreter",
@@ -36,7 +37,7 @@ class ReceptionAgentTests(unittest.TestCase):
         self.assertEqual(agent.pending_tasks, {})
 
     def test_repeat_action_uses_the_previous_staff_reply(self) -> None:
-        agent = ReceptionAgent()
+        agent = ReceptionAgent(TaskStore.in_memory())
         option = RequestOption(
             id="show_again",
             button_text="Show again",
@@ -57,7 +58,7 @@ class ReceptionAgentTests(unittest.TestCase):
         self.assertIn("Registration is on the left", result.message)
 
     def test_unknown_action_is_rejected(self) -> None:
-        agent = ReceptionAgent()
+        agent = ReceptionAgent(TaskStore.in_memory())
         option = RequestOption("unsafe", "Unsafe", "Do something unknown")
 
         with self.assertRaises(ValueError):

@@ -12,29 +12,29 @@
 
 - One confirmed sign opens a small set of predefined reception-desk requests.
 - The signer confirms both the sign and the complete request before speech or action.
-- A rule-based action engine creates safe local reception tasks.
+- A rule-based action engine creates persistent local reception tasks.
+- The Staff desk can accept, reply to and complete tasks and measure basic completion time.
 - Staff can type a short reply, and the person can continue with another sign.
 - The session remembers an earlier staff reply for `Again` or `Repeat`.
 - Completing the interaction closes local tasks and clears the temporary conversation.
-- Nothing is sent to an external service in this version; local task IDs are not real outside tickets.
+- An optional, administrator-configured HTTPS webhook can notify a real staff channel. It does not create bookings or request interpreters.
 
 The next proof is not a larger vocabulary. Test whether real users can finish the supported interaction without a false action, how often they need correction, whether the action selected was correct, and how long it takes.
 
-## Next: real service connections
+## Now: first real service connection
 
 - Choose one real setting, such as a reception desk.
-- Connect only the functions that setting actually has, such as a check-in API or staff notification system.
+- The app now supports one opt-in Slack/Teams-compatible staff notification webhook. A venue must provide and test its own URL.
+- Booking, check-in and interpreter APIs are still future connections.
 - Show the user exactly what will happen before every outside action.
 - Record success, failure and cancellation without saving sign video.
 - Keep a manual staff fallback whenever a service is unavailable.
 
 This is the smallest version that can be trained and tested honestly before the event.
 
-## Next: uploaded videos
+## Now: short training-video import
 
-This is possible. The same landmark and classifier pipeline can read frames from a video file instead of a webcam.
-
-The first version should accept a short clip containing one of the same 8 signs. It must not claim to translate arbitrary videos or sentences. Add trimming, a progress indicator and a result timeline only after the webcam model passes its final test.
+The Train model screen accepts a short clip containing exactly one selected sign. It extracts the same landmark sequence as live capture and does not copy the raw video. It does not translate arbitrary videos or sentences. Trimming, timelines and continuous-video translation remain future work.
 
 ## Later: online meetings
 

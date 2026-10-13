@@ -8,6 +8,9 @@
 - A controlled reception agent that turns a confirmed sign into one predefined request and safe local action.
 - Separate confirmation of the detected sign and complete request before any agent action or guided speech.
 - Local reception task IDs for directions, appointments, interpreter requests, general help and water help.
+- A persistent Staff desk where tasks can be accepted, replied to and completed after an app restart.
+- An optional HTTPS Slack/Teams-compatible staff notification webhook, disabled until explicitly configured.
+- Basic task totals, delivery failures and average completion-time measurement.
 - Short-session memory, including showing an earlier staff reply after the `Again` or `Repeat` request.
 - A manual correction fallback, typed staff replies, another-sign continuation and temporary session clearing.
 - Optional Windows computer control for volume, slides, pointer and click.
@@ -18,11 +21,12 @@
 - Manual speech by default, with optional automatic speech for a controlled demo.
 - `OTHER / NO SIGN` training examples to reduce false detections.
 - Local landmark storage; raw camera video is not saved.
+- Short training-video import for remote participants; the selected raw video is not copied into SignBridge.
 - Unseen-person accuracy report when at least three people have recorded every class.
 - A separate **Final test** area that blocks training people and keeps results out of training.
 - Reports for accuracy, false acceptance, unknown rejection, test conditions and model processing time.
 
-A real webcam capture previously produced the expected 32-step landmark sequence. The new hand model was also tested on the supplied gesture-control video and found hands in 105 of 120 sampled frames. The preview runs separately from sign capture so the larger body model does not slow normal viewing. All 37 automated tests pass, covering confirmation safety, action selection, conversation memory, temporary session clearing and the resizable layout. A startup/shutdown check passed on 12 October 2026, but camera 0 was busy or unavailable during that check. Recheck the live camera after closing every browser, meeting or Camera app that may use it.
+A real webcam capture previously produced the expected 32-step landmark sequence. The new hand model was also tested on the supplied gesture-control video and found hands in 105 of 120 sampled frames. The preview runs separately from sign capture so the larger body model does not slow normal viewing. All 47 automated tests pass, including confirmation safety, persistent task lifecycle, webhook safety, imported-video extraction, negative examples, conversation memory, computer control and the resizable layout. A startup/shutdown check passed on 13 October 2026. Recheck the live camera after closing every browser, meeting or Camera app that may use it.
 
 ## Still required before an accuracy or accessibility claim
 
@@ -34,4 +38,4 @@ A real webcam capture previously produced the expected 32-step landmark sequence
 6. Keep only signs that pass the test plan.
 7. Test complete SignBridge agent tasks with target users and measure corrections, false actions and completion time.
 
-A personalized ASL model trained only on Yusuf exists. It has not been validated on unseen people, and its **Help** and **OTHER / NO SIGN** classes have much less data than the other classes. No Emirati model exists yet. The agent's task numbers exist only inside the running app; no outside reception, booking or interpreter system is connected. This remains an 8-sign isolated-sign prototype, not a full sign-language translator.
+A personalized ASL model trained only on Yusuf exists. It has not been validated on unseen people, and its **Help** and **OTHER / NO SIGN** classes have much less data than the other classes. No Emirati model exists yet. Local agent tasks now persist. A venue can configure a notification webhook, but no booking or interpreter system is connected. This remains an 8-sign isolated-sign prototype, not a full sign-language translator.

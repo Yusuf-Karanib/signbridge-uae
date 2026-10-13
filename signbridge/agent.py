@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Iterable
 
 from signbridge.assistance import ConversationTurn, RequestOption
+from signbridge.tasks import ReceptionTask, TaskStatus, TaskStore
 
 
 class AgentActionStatus(str, Enum):
@@ -140,9 +141,9 @@ _ACTION_TEXT = {
 class ReceptionAgent:
     """Runs a small, explicit set of safe reception actions.
 
-    The first version has no connection to booking, messaging or interpreter
-    services. Tasks exist only inside the running app, so every result says that
-    clearly instead of pretending that an outside action happened.
+    It creates persistent local staff tasks. The UI may separately send a task
+    notification through an explicitly configured webhook, but this engine does
+    not change bookings or contact interpreter services.
     """
 
     _LOCAL_TASK_ACTIONS = frozenset(
@@ -156,9 +157,15 @@ class ReceptionAgent:
         }
     )
 
-    def __init__(self) -> None:
-        self._task_counter = 0
-        self.pending_tasks: dict[str, AgentActionResult] = {}
+    def __init__(self, task_store: TaskStore | None = None) -> None:
+        self.task_store = task_store or TaskStore()
+
+    @property
+    def pending_tasks(self) -> dict[str, ReceptionTask]:
+        return {
+            task.id: task
+            for task in self.task_store.list_tasks(include_completed=False)
+        }
 
     def execute(
         self,
@@ -201,15 +208,19 @@ class ReceptionAgent:
 
         title, message = messages[option.id]
         if option.id in self._LOCAL_TASK_ACTIONS:
-            task_id = self._next_task_id()
+            task = self.task_store.create(
+                action_id=option.id,
+                title=title,
+                message=message,
+                language=language,
+            )
             result = AgentActionResult(
                 action_id=option.id,
                 title=title,
-                message=f"{message} [{task_id}]",
+                message=f"{message} [{task.id}]",
                 status=AgentActionStatus.LOCAL_TASK,
-                task_id=task_id,
+                task_id=task.id,
             )
-            self.pending_tasks[task_id] = result
             return result
 
         status = (
@@ -227,10 +238,8 @@ class ReceptionAgent:
     def complete_tasks(self, task_ids: Iterable[str]) -> int:
         completed = 0
         for task_id in set(task_ids):
-            if self.pending_tasks.pop(task_id, None) is not None:
+            task = self.task_store.get(task_id)
+            if task is not None and task.status != TaskStatus.COMPLETED:
+                self.task_store.update_status(task_id, TaskStatus.COMPLETED)
                 completed += 1
         return completed
-
-    def _next_task_id(self) -> str:
-        self._task_counter += 1
-        return f"SB-{self._task_counter:03d}"

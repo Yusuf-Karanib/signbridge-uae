@@ -6,7 +6,7 @@ For a short operating manual for the latest camera and computer controls, read `
 
 ## Read these three parts first
 
-1. **What exists now:** the application, improved hand tracking, training system, testing system, text, speech, a controlled reception agent and an optional computer-control experiment are built. A personalized ASL model trained only on Yusuf exists. No Emirati model exists yet.
+1. **What exists now:** the application, improved hand tracking, live and short-video training, testing, text, speech, a controlled reception agent, a persistent Staff desk, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists. No Emirati model exists yet.
 2. **What must happen next:** fluent signers must validate the 8 sign forms, more real people must record examples, the Emirati model must be trained, the ASL model must be strengthened, and completely new people must test both models.
 3. **What it is:** a bilingual prototype that recognizes one of 4 ASL signs or one of 4 Emirati signs during a short prompted recording. The SignBridge agent can turn confirmed results into predefined reception-desk requests, run safe local actions and remember a short session. It is not a full sign-language or sentence translator.
 
@@ -154,7 +154,7 @@ The default confidence threshold is 82%. When there is enough multi-person train
 
 A confidence score is not proof. It only describes how strongly this model prefers one choice based on the data it learned.
 
-## 8. The five application screens
+## 8. The six application screens
 
 ### SignBridge agent
 
@@ -171,7 +171,20 @@ This is the first screen and the main product demonstration. It completes a smal
 9. Press **Continue with another sign** to keep the conversation in memory. `Again` or `Repeat` can then show the earlier staff reply.
 10. Press **Complete task and clear session**. The temporary conversation disappears and is not written to disk.
 
-The first version uses a small rule-based action engine, not a chatbot. That makes every possible action visible, predictable and testable. Local task numbers exist only inside the running app. “Show to staff” does not contact staff, change a booking or summon an interpreter outside SignBridge.
+The first version uses a small rule-based action engine, not a chatbot. That makes every possible action visible, predictable and testable. Task numbers are saved locally and remain after a restart. They do not change bookings or summon an interpreter. A real staff notification happens only if an administrator explicitly configures and enables the optional webhook.
+
+### Staff desk
+
+This is the simple work queue for the person helping signers.
+
+- New confirmed help requests appear as **Pending** tasks with IDs such as `SB-001`.
+- Staff can **Accept**, type or choose a short reply, then **Complete** a task.
+- A reply also appears immediately in the open signer session when that session is still active.
+- The summary shows pending, accepted, completed and delivered totals plus average completion time.
+- Completed tasks are hidden by default but can be shown.
+- Tasks are stored in `data/agent_tasks.json`; sign video is not stored there.
+- The optional webhook can notify a Slack, Teams workflow or compatible HTTPS endpoint. It is off by default. Use **Send safe test** before enabling it for real tasks.
+- A successful notification means only that the endpoint accepted the message. It does not prove a person read or completed it.
 
 ### Recognize
 
@@ -210,7 +223,7 @@ This is the data collection and model training screen.
 - Open the exact reference link.
 - Enter the fluent signer's or interpreter's name after review.
 - Mark the selected form reviewed.
-- Record training attempts.
+- Record training attempts live, or press **Import short video** for one consented 2–5 second clip containing exactly the selected sign.
 - Use **Remove last sample** when the latest recording was clearly wrong. It is moved to a recoverable trash folder.
 - Train or update the selected language model after enough data is collected.
 
@@ -258,7 +271,7 @@ Control always starts off. Changing modes requires arming again. Leaving the tab
 - Press `Escape`, `F11` or **Exit full screen** to leave full-screen mode.
 - Press **Reset layout** if the window or divider becomes awkward.
 - Each controls page scrolls vertically when the window is too short to show every function at once.
-- On a narrow controls panel, the tab names automatically shorten to **Assist**, **Use**, **Train**, **Test** and **PC**.
+- On a narrow controls panel, the tab names automatically shorten to **Agent**, **Use**, **Train**, **Test**, **Desk** and **PC**.
 
 The camera preview expands with the available area while keeping the video proportions correct.
 
@@ -452,7 +465,7 @@ The system must not be presented as medical, emergency or accessibility equipmen
 
 ## 16. Data, privacy and stored files
 
-The camera frames are processed in memory and shown in the preview. The training screen does not save raw video.
+The camera frames are processed in memory and shown in the preview. Live training does not save raw video. An imported clip is read once to extract landmarks and is not copied into the project.
 
 It saves:
 
@@ -462,6 +475,8 @@ It saves:
 - Validation records.
 - Final-test outcomes.
 - Trained model files and metrics.
+- Local reception task type, status, delivery status and staff reply.
+- Local webhook settings if an administrator saves them.
 
 Landmarks are less revealing than video but should still be treated as potentially sensitive movement data. Person IDs are pseudonyms, not guaranteed anonymity. Ask for consent, protect the project folder and do not publish the data without permission.
 
@@ -478,6 +493,9 @@ Landmarks are less revealing than video but should still be treated as potential
 | `signbridge/landmarks.py` | Converts body and hand points into normalized model features |
 | `signbridge/classifier.py` | Trains, evaluates, saves, loads and runs the classifiers |
 | `signbridge/dataset.py` | Saves and loads training landmark samples |
+| `signbridge/video_import.py` | Extracts landmarks from one short training clip without copying the raw video |
+| `signbridge/tasks.py` | Saves and measures the local staff task queue |
+| `signbridge/integrations.py` | Validates settings and sends optional staff webhook notifications |
 | `signbridge/validation.py` | Stores fluent-signer review records |
 | `signbridge/evaluation.py` | Stores final-test attempts and calculates reports |
 | `signbridge/speech.py` | Produces local text-to-speech |
@@ -487,6 +505,8 @@ Landmarks are less revealing than video but should still be treated as potential
 | `data/samples/` | Contains local training landmark samples |
 | `data/evaluations/` | Contains final-test attempts and reports |
 | `data/validation.json` | Contains sign-form review records |
+| `data/agent_tasks.json` | Contains local staff task status and replies; no video |
+| `data/agent_settings.json` | Contains the optional webhook setting; protect this file because its URL may be secret |
 | `models/` | Contains trained ASL and Emirati classifier files |
 | `tests/` | Contains automated software tests |
 | `docs/` | Contains research, collection, validation and testing guides |
@@ -503,10 +523,12 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 - A synthetic classifier can train, save, load and predict.
 - Final-test reports stay separated by model version.
 - The vocabulary contains two separate four-sign packs.
-- The desktop window loads with all five tabs.
+- The desktop window loads with all six tabs.
 - The SignBridge agent blocks speech and actions until the sign and complete request are confirmed.
 - Every supported request maps to a tested action handler.
-- Local task results state that no outside service was contacted.
+- Local tasks persist, can be accepted/replied to/completed and produce basic workflow measurements.
+- Unsafe webhook URLs are rejected, and webhook payloads are tested without sending real requests.
+- A short training video can be converted into the same 32-step landmark format without storing the raw video.
 - A second turn can reuse an earlier staff reply.
 - Rejected predictions cannot advance the guided session.
 - Completing a guided session clears its temporary conversation.
@@ -577,7 +599,7 @@ Extract it, run `setup.ps1` once, then double-click `Start SignBridge.vbs`. If t
 
 Use this wording:
 
-> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. Its controlled reception agent asks the signer to confirm the result and complete request before speech or action. It can create a local reception task, remember staff replies between turns and clear the temporary session afterward. Outside services are not connected, and it is not a complete sign-language translator.
+> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. Its controlled reception agent asks the signer to confirm the result and complete request before speech or action. It creates a persistent staff task, supports a staff reply and can optionally notify one configured staff webhook. It does not make bookings or translate complete sign-language conversations.
 
 ### Suggested demonstration
 
@@ -585,8 +607,8 @@ Use this wording:
 2. Open **SignBridge agent** and explicitly choose ASL or Emirati Sign Language.
 3. Record one validated sign and show that SignBridge waits for confirmation.
 4. Choose the exact request, confirm the sentence and let SignBridge speak it.
-5. Show the local agent action, type a staff reply and continue with an `Again` or `Repeat` turn.
-6. Complete and clear the session.
+5. Open **Staff desk**, accept the task and type a staff reply.
+6. Continue with an `Again` or `Repeat` turn, then complete and clear the session.
 7. Show an unsupported movement producing “Not sure” without advancing, speaking or acting.
 8. Briefly show the Final test report and explain that new people were kept out of training.
 
@@ -608,7 +630,7 @@ It follows a controlled loop: observe a supported sign, ask for confirmation, ch
 
 ### What actions can it perform now?
 
-It can start a session, create local tasks for directions, appointment help, interpreter help, general help or water help, show a waiting state, and recover an earlier staff reply after an `Again` or `Repeat` request. These actions are visible inside SignBridge. It cannot contact a real staff system, booking system or interpreter service until one is deliberately connected and tested.
+It can start a session, create persistent local tasks for directions, appointment help, interpreter help, general help or water help, show a waiting state, and recover an earlier staff reply after an `Again` or `Repeat` request. Staff can manage the queue inside SignBridge. An administrator may connect one tested staff-notification webhook. It still cannot change bookings or request an interpreter from an outside service.
 
 ### Does it work offline?
 
@@ -616,7 +638,7 @@ Recognition works locally after setup. External reference links need internet, a
 
 ### Does it save video?
 
-The current training workflow saves landmarks, not raw video.
+The current training workflow saves landmarks, not raw video. The video importer reads a selected clip once and does not copy it into SignBridge.
 
 ### Does it learn while someone uses it?
 
@@ -632,9 +654,7 @@ The immediate dataset is small and the deadline is short. A smaller model is fas
 
 ### Can uploaded videos be supported?
 
-Yes, but the current training screen still records live webcam attempts. A useful
-importer would accept one short clip for one selected sign and save its landmarks
-under that person's ID. It would not translate an arbitrary video or a sentence.
+Yes. **Train model → Import short video** accepts one short clip for one selected sign and saves its landmarks under that person's ID. It does not translate an arbitrary video or a sentence.
 
 A remote participant should send separate 2-to-3-second clips, with their face,
 shoulders, elbows and both hands visible. Keep the phone still, use good front

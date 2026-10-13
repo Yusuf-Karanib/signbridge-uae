@@ -15,6 +15,8 @@ SAMPLES_DIR = DATA_DIR / "samples"
 TRASH_DIR = DATA_DIR / "trash"
 VALIDATION_PATH = DATA_DIR / "validation.json"
 EVALUATIONS_DIR = DATA_DIR / "evaluations"
+AGENT_TASKS_PATH = DATA_DIR / "agent_tasks.json"
+AGENT_SETTINGS_PATH = DATA_DIR / "agent_settings.json"
 
 TRAINED_MODELS_DIR = PROJECT_ROOT / "models"
 
@@ -39,6 +41,7 @@ def ensure_project_directories() -> None:
         TRASH_DIR,
         EVALUATIONS_DIR,
         TRAINED_MODELS_DIR,
+        DATA_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)
 

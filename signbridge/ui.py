@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from functools import partial
 import math
+from pathlib import Path
 import time
 from typing import Any
 
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
+    QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
@@ -50,8 +52,15 @@ from signbridge.config import (
 )
 from signbridge.dataset import DatasetStore
 from signbridge.evaluation import EvaluationStore
+from signbridge.integrations import (
+    AgentSettingsStore,
+    DeliveryResult,
+    StaffWebhookConnector,
+)
 from signbridge.speech import SpeechService
+from signbridge.tasks import DeliveryStatus, ReceptionTask, TaskStatus
 from signbridge.validation import ValidationStore
+from signbridge.video_import import extract_training_video
 from signbridge.vocabulary import LanguagePack, Vocabulary
 
 
@@ -259,8 +268,61 @@ class TrainingWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class WebhookWorker(QThread):
+    complete = Signal(str, object)
+
+    def __init__(
+        self,
+        connector: StaffWebhookConnector,
+        url: str,
+        task: ReceptionTask | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.connector = connector
+        self.url = url
+        self.task = task
+
+    def run(self) -> None:
+        key = self.task.id if self.task is not None else "__test__"
+        try:
+            result = (
+                self.connector.send_task(self.task, self.url)
+                if self.task is not None
+                else self.connector.send_test(self.url)
+            )
+        except Exception as exc:
+            result = DeliveryResult(False, None, f"Notification failed: {exc}")
+        self.complete.emit(key, result)
+
+
+class VideoImportWorker(QThread):
+    complete = Signal(object, object)
+    failed = Signal(str)
+
+    def __init__(self, path: Path, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.path = Path(path)
+
+    def run(self) -> None:
+        try:
+            imported = extract_training_video(
+                self.path, should_stop=self.isInterruptionRequested
+            )
+            self.complete.emit(imported.sequence, imported.quality)
+        except InterruptedError:
+            return
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        reception_agent: ReceptionAgent | None = None,
+        settings_store: AgentSettingsStore | None = None,
+        webhook_connector: StaffWebhookConnector | None = None,
+    ) -> None:
         super().__init__()
         self.vocabulary = Vocabulary.load()
         self.dataset = DatasetStore()
@@ -277,13 +339,18 @@ class MainWindow(QMainWindow):
         }
         self.history_entries: list[dict[str, str]] = []
         self.last_spoken: tuple[str, str] | None = None
-        self.reception_agent = ReceptionAgent()
+        self.reception_agent = reception_agent or ReceptionAgent()
+        self.agent_settings_store = settings_store or AgentSettingsStore()
+        self.webhook_connector = webhook_connector or StaffWebhookConnector()
+        self.webhook_workers: list[WebhookWorker] = []
         self.assistance_session = AssistanceSession()
         self.assistance_action_results: list[AgentActionResult] = []
         self.assistance_feedback = "Ready for a new request"
         self.assistance_result_text = "—"
         self.assistance_result_confidence: float | None = None
         self.training_worker: TrainingWorker | None = None
+        self.video_import_worker: VideoImportWorker | None = None
+        self.video_import_context: dict | None = None
         self.camera_worker = CameraWorker(parent=self)
         self.camera_ok = False
         self.capture_controls_enabled = True
@@ -434,6 +501,9 @@ class MainWindow(QMainWindow):
         )
         self.evaluation_tab_index = self.tabs.addTab(
             self._build_evaluation_tab(), "Final test"
+        )
+        self.staff_tab_index = self.tabs.addTab(
+            self._build_staff_tab(), "Staff desk"
         )
         self.control_tab_index = self.tabs.addTab(
             self._build_control_tab(), "Computer control"
@@ -598,7 +668,7 @@ class MainWindow(QMainWindow):
         tab, layout = self._scroll_page()
 
         notice = QLabel(
-            "This is a controlled reception agent. It understands only supported, confirmed requests. Local actions work now; booking, messaging and interpreter services are not connected."
+            "This is a controlled reception agent. It understands only supported, confirmed requests. Local tasks work now and staff notification is optional; booking and interpreter services are not connected."
         )
         notice.setWordWrap(True)
         notice.setObjectName("warning")
@@ -706,7 +776,7 @@ class MainWindow(QMainWindow):
 
         self.assist_action_card, action_layout = self._section_card(
             "4. Agent action",
-            "The confirmed request chooses one safe function. External services remain off until a real connection is added and tested.",
+            "The confirmed request chooses one visible, limited function. Staff notification is optional; booking and interpreter services are not connected.",
         )
         self.assist_action_status = QLabel("No action yet")
         self.assist_action_status.setObjectName("success")
@@ -720,7 +790,7 @@ class MainWindow(QMainWindow):
         self.assist_action_message.setWordWrap(True)
         action_layout.addWidget(self.assist_action_message)
         self.assist_action_safety = QLabel(
-            "Local prototype action: no outside service was contacted."
+            "Tasks are saved locally. If the Staff desk webhook is enabled, a new confirmed task also sends one staff notification."
         )
         self.assist_action_safety.setObjectName("warning")
         self.assist_action_safety.setWordWrap(True)
@@ -902,9 +972,14 @@ class MainWindow(QMainWindow):
         self.record_training_button = QPushButton("Record training sample")
         self.record_training_button.setObjectName("primary")
         self.record_training_button.setMinimumHeight(52)
+        self.import_training_video_button = QPushButton("Import short video")
+        self.import_training_video_button.setToolTip(
+            "Import one 2–5 second clip containing only the selected sign"
+        )
         self.delete_last_button = QPushButton("Remove last sample")
         self.delete_last_button.setObjectName("danger")
         button_row.addWidget(self.record_training_button, 2)
+        button_row.addWidget(self.import_training_video_button, 1)
         button_row.addWidget(self.delete_last_button, 1)
         layout.addLayout(button_row)
 
@@ -938,6 +1013,137 @@ class MainWindow(QMainWindow):
         self.train_model_button.setMinimumHeight(46)
         model_layout.addWidget(self.train_model_button)
         layout.addWidget(model_card)
+        layout.addStretch()
+        return tab
+
+    def _build_staff_tab(self) -> QWidget:
+        tab, layout = self._scroll_page()
+
+        notice = QLabel(
+            "Staff desk stores request type, status and reply locally. It does not store sign video. Webhook delivery is off until you configure and enable it."
+        )
+        notice.setWordWrap(True)
+        notice.setObjectName("warning")
+        layout.addWidget(notice)
+
+        queue_card, queue_layout = self._section_card(
+            "Reception task queue",
+            "Select a task, accept it, reply to the person and mark it complete.",
+        )
+        self.staff_summary = QLabel("No tasks yet")
+        self.staff_summary.setWordWrap(True)
+        self.staff_summary.setObjectName("modelStatus")
+        queue_layout.addWidget(self.staff_summary)
+        self.staff_task_table = QTableWidget(0, 4)
+        self.staff_task_table.setHorizontalHeaderLabels(
+            ("Task", "Request", "Status", "Delivery")
+        )
+        self.staff_task_table.verticalHeader().setVisible(False)
+        self.staff_task_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.staff_task_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.staff_task_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.staff_task_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.staff_task_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
+        self.staff_task_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.staff_task_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.staff_task_table.setMinimumHeight(230)
+        self.staff_task_table.setMaximumHeight(320)
+        queue_layout.addWidget(self.staff_task_table)
+        queue_filter_row = QHBoxLayout()
+        queue_filter_row.setSpacing(8)
+        self.staff_show_completed = QCheckBox("Show completed")
+        self.staff_refresh_button = QPushButton("Refresh")
+        self.staff_accept_button = QPushButton("Accept selected")
+        self.staff_complete_button = QPushButton("Complete selected")
+        queue_filter_row.addWidget(self.staff_show_completed)
+        queue_filter_row.addStretch()
+        queue_filter_row.addWidget(self.staff_refresh_button)
+        queue_layout.addLayout(queue_filter_row)
+        queue_action_row = QHBoxLayout()
+        queue_action_row.setSpacing(8)
+        queue_action_row.addWidget(self.staff_accept_button, 1)
+        queue_action_row.addWidget(self.staff_complete_button, 1)
+        queue_layout.addLayout(queue_action_row)
+        layout.addWidget(queue_card)
+
+        reply_card, reply_layout = self._section_card(
+            "Reply to the selected task",
+            "If this task belongs to the open signer session, the reply also appears there immediately.",
+        )
+        self.staff_quick_reply = QComboBox()
+        self.staff_quick_reply.addItem("Choose an optional quick reply", None)
+        self.staff_quick_reply.addItem(
+            "I will help you now",
+            {"asl": "I will help you now.", "emirati": "سأساعدك الآن."},
+        )
+        self.staff_quick_reply.addItem(
+            "Please wait here",
+            {"asl": "Please wait here.", "emirati": "من فضلك انتظر هنا."},
+        )
+        self.staff_quick_reply.addItem(
+            "Please follow me",
+            {"asl": "Please follow me.", "emirati": "من فضلك اتبعني."},
+        )
+        reply_layout.addWidget(self.staff_quick_reply)
+        reply_row = QHBoxLayout()
+        reply_row.setSpacing(8)
+        self.staff_reply_text = QLineEdit()
+        self.staff_reply_text.setPlaceholderText("Type a short reply for the signer")
+        self.staff_reply_text.setMaxLength(500)
+        self.staff_reply_button = QPushButton("Save and show reply")
+        self.staff_reply_button.setObjectName("primary")
+        reply_row.addWidget(self.staff_reply_text, 2)
+        reply_row.addWidget(self.staff_reply_button, 1)
+        reply_layout.addLayout(reply_row)
+        self.staff_action_status = QLabel("Select a task first")
+        self.staff_action_status.setWordWrap(True)
+        self.staff_action_status.setObjectName("muted")
+        reply_layout.addWidget(self.staff_action_status)
+        layout.addWidget(reply_card)
+
+        connection_card, connection_layout = self._section_card(
+            "Optional real staff notification",
+            "Paste an HTTPS Slack, Teams workflow or compatible webhook URL. Confirmed local tasks will then be sent to that service.",
+        )
+        self.staff_webhook_enabled = QCheckBox("Send new confirmed tasks to this webhook")
+        self.staff_webhook_enabled.setChecked(
+            self.agent_settings_store.settings.enabled
+        )
+        connection_layout.addWidget(self.staff_webhook_enabled)
+        self.staff_webhook_url = QLineEdit()
+        self.staff_webhook_url.setPlaceholderText("https://…")
+        self.staff_webhook_url.setEchoMode(QLineEdit.EchoMode.PasswordEchoOnEdit)
+        self.staff_webhook_url.setText(self.agent_settings_store.settings.url)
+        connection_layout.addWidget(self.staff_webhook_url)
+        connection_buttons = QHBoxLayout()
+        connection_buttons.setSpacing(8)
+        self.staff_save_webhook_button = QPushButton("Save connection")
+        self.staff_test_webhook_button = QPushButton("Send safe test")
+        connection_buttons.addWidget(self.staff_save_webhook_button)
+        connection_buttons.addWidget(self.staff_test_webhook_button)
+        connection_layout.addLayout(connection_buttons)
+        self.staff_webhook_status = QLabel(
+            "Connection disabled" if not self.agent_settings_store.settings.enabled else "Connection enabled"
+        )
+        self.staff_webhook_status.setWordWrap(True)
+        self.staff_webhook_status.setObjectName("muted")
+        connection_layout.addWidget(self.staff_webhook_status)
+        layout.addWidget(connection_card)
+
         layout.addStretch()
         return tab
 
@@ -1041,7 +1247,26 @@ class MainWindow(QMainWindow):
         )
         self.assist_complete_button.clicked.connect(self._complete_assistance_session)
         self.assist_staff_reply.returnPressed.connect(self._add_assistance_reply)
+        self.staff_task_table.itemSelectionChanged.connect(
+            self._refresh_staff_selection
+        )
+        self.staff_show_completed.stateChanged.connect(self._refresh_staff_tab)
+        self.staff_refresh_button.clicked.connect(self._refresh_staff_tab)
+        self.staff_accept_button.clicked.connect(self._accept_staff_task)
+        self.staff_complete_button.clicked.connect(self._complete_staff_task)
+        self.staff_quick_reply.currentIndexChanged.connect(
+            self._apply_staff_quick_reply
+        )
+        self.staff_reply_button.clicked.connect(self._reply_to_staff_task)
+        self.staff_reply_text.returnPressed.connect(self._reply_to_staff_task)
+        self.staff_save_webhook_button.clicked.connect(
+            self._save_webhook_settings
+        )
+        self.staff_test_webhook_button.clicked.connect(self._test_webhook)
         self.record_training_button.clicked.connect(self._capture_training_sample)
+        self.import_training_video_button.clicked.connect(
+            self._import_training_video
+        )
         self.record_evaluation_button.clicked.connect(self._capture_evaluation_sample)
         self.delete_last_button.clicked.connect(self._remove_last_sample)
         self.train_model_button.clicked.connect(self._train_model)
@@ -1086,13 +1311,14 @@ class MainWindow(QMainWindow):
         tabs_width = self.tabs.width()
         compact = self.width() < 1180 or (tabs_width > 0 and tabs_width < 760)
         tab_names = (
-            ("Agent", "Use", "Train", "Test", "PC")
+            ("Agent", "Use", "Train", "Test", "Desk", "PC")
             if compact
             else (
                 "SignBridge agent",
                 "Recognize",
                 "Train model",
                 "Final test",
+                "Staff desk",
                 "Computer control",
             )
         )
@@ -1136,6 +1362,7 @@ class MainWindow(QMainWindow):
         self._refresh_assistance_tab()
         self._refresh_training_tab()
         self._refresh_evaluation_tab()
+        self._refresh_staff_tab()
         self._refresh_control_ui()
         self._render_history()
 
@@ -1343,6 +1570,228 @@ class MainWindow(QMainWindow):
             self.assist_step_label.setText(
                 "Step 5 of 5 — staff can reply or the person can continue"
             )
+
+    def _refresh_staff_tab(self, *_args: Any) -> None:
+        selected = self._selected_staff_task()
+        selected_id = selected.id if selected is not None else None
+        include_completed = self.staff_show_completed.isChecked()
+        tasks = self.reception_agent.task_store.list_tasks(include_completed)
+        self.staff_task_table.blockSignals(True)
+        self.staff_task_table.setRowCount(len(tasks))
+        selected_row = -1
+        status_names = {
+            TaskStatus.PENDING: "Pending",
+            TaskStatus.ACCEPTED: "Accepted",
+            TaskStatus.COMPLETED: "Completed",
+        }
+        delivery_names = {
+            DeliveryStatus.NOT_CONFIGURED: "Local only",
+            DeliveryStatus.SENDING: "Sending",
+            DeliveryStatus.SENT: "Sent",
+            DeliveryStatus.FAILED: "Failed",
+        }
+        for row, task in enumerate(tasks):
+            task_item = QTableWidgetItem(task.id)
+            task_item.setData(Qt.ItemDataRole.UserRole, task.id)
+            self.staff_task_table.setItem(row, 0, task_item)
+            self.staff_task_table.setItem(row, 1, QTableWidgetItem(task.title))
+            self.staff_task_table.setItem(
+                row, 2, QTableWidgetItem(status_names[task.status])
+            )
+            self.staff_task_table.setItem(
+                row, 3, QTableWidgetItem(delivery_names[task.delivery_status])
+            )
+            if task.id == selected_id:
+                selected_row = row
+        self.staff_task_table.blockSignals(False)
+        if selected_row >= 0:
+            self.staff_task_table.selectRow(selected_row)
+
+        summary = self.reception_agent.task_store.summary()
+        average = summary["average_completion_seconds"]
+        average_text = (
+            f" • average completion {float(average):.0f}s"
+            if average is not None
+            else ""
+        )
+        self.staff_summary.setText(
+            f"Pending {summary['pending']} • accepted {summary['accepted']} • "
+            f"completed {summary['completed']} • delivered {summary['sent']}"
+            f" • delivery failed {summary['failed_delivery']}"
+            f"{average_text}"
+        )
+        load_error = self.reception_agent.task_store.load_error
+        if load_error:
+            self.staff_action_status.setText(load_error)
+        self._refresh_staff_selection()
+
+    def _selected_staff_task(self) -> ReceptionTask | None:
+        if not hasattr(self, "staff_task_table"):
+            return None
+        row = self.staff_task_table.currentRow()
+        item = self.staff_task_table.item(row, 0) if row >= 0 else None
+        if item is None:
+            return None
+        task_id = item.data(Qt.ItemDataRole.UserRole)
+        return self.reception_agent.task_store.get(str(task_id))
+
+    def _refresh_staff_selection(self) -> None:
+        task = self._selected_staff_task()
+        pending = task is not None and task.status == TaskStatus.PENDING
+        open_task = task is not None and task.status != TaskStatus.COMPLETED
+        self.staff_accept_button.setEnabled(pending)
+        self.staff_complete_button.setEnabled(open_task)
+        self.staff_reply_text.setEnabled(open_task)
+        self.staff_reply_button.setEnabled(open_task)
+        self.staff_quick_reply.setEnabled(open_task)
+        if task is None:
+            self.staff_action_status.setText("Select a task first")
+            return
+        self.staff_reply_text.setText(task.staff_reply)
+        detail = task.delivery_message or task.message
+        self.staff_action_status.setText(f"{task.id}: {detail}")
+
+    def _accept_staff_task(self) -> None:
+        task = self._selected_staff_task()
+        if task is None:
+            return
+        try:
+            self.reception_agent.task_store.update_status(
+                task.id, TaskStatus.ACCEPTED
+            )
+            self.staff_action_status.setText(f"{task.id} accepted")
+        except (RuntimeError, ValueError) as exc:
+            self.staff_action_status.setText(str(exc))
+        self._refresh_staff_tab()
+
+    def _complete_staff_task(self) -> None:
+        task = self._selected_staff_task()
+        if task is None:
+            return
+        try:
+            self.reception_agent.task_store.update_status(
+                task.id, TaskStatus.COMPLETED
+            )
+            self.staff_action_status.setText(f"{task.id} completed")
+        except (RuntimeError, ValueError) as exc:
+            self.staff_action_status.setText(str(exc))
+        self._refresh_staff_tab()
+
+    def _apply_staff_quick_reply(self, *_args: Any) -> None:
+        task = self._selected_staff_task()
+        choices = self.staff_quick_reply.currentData()
+        if task is None or not isinstance(choices, dict):
+            return
+        reply = choices.get(task.language)
+        if reply:
+            self.staff_reply_text.setText(str(reply))
+
+    def _reply_to_staff_task(self) -> None:
+        task = self._selected_staff_task()
+        if task is None:
+            return
+        reply = self.staff_reply_text.text().strip()
+        try:
+            updated = self.reception_agent.task_store.add_reply(task.id, reply)
+            if updated.status == TaskStatus.PENDING:
+                updated = self.reception_agent.task_store.update_status(
+                    task.id, TaskStatus.ACCEPTED
+                )
+        except (RuntimeError, ValueError) as exc:
+            self.staff_action_status.setText(str(exc))
+            return
+
+        current_task_ids = {
+            result.task_id
+            for result in self.assistance_action_results
+            if result.task_id is not None
+        }
+        if (
+            task.id in current_task_ids
+            and self.assistance_session.stage == AssistanceStage.WAITING_REPLY
+        ):
+            pack = self.vocabulary.pack(self.assistance_session.language)
+            self.assistance_session.add_staff_reply(reply, pack.locale)
+            self.assistance_feedback = "Staff replied from the Staff desk."
+            self._render_assistance()
+        self.staff_action_status.setText(f"Reply saved for {task.id}")
+        self.staff_reply_text.clear()
+        self.staff_quick_reply.setCurrentIndex(0)
+        self._refresh_staff_tab()
+
+    def _save_webhook_settings(self) -> None:
+        try:
+            settings = self.agent_settings_store.save_webhook(
+                enabled=self.staff_webhook_enabled.isChecked(),
+                url=self.staff_webhook_url.text(),
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.staff_webhook_status.setText(str(exc))
+            return
+        self.staff_webhook_status.setText(
+            "Connection enabled" if settings.enabled else "Connection disabled"
+        )
+
+    def _test_webhook(self) -> None:
+        url = self.staff_webhook_url.text().strip()
+        try:
+            self.agent_settings_store.save_webhook(
+                enabled=self.staff_webhook_enabled.isChecked(),
+                url=url,
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.staff_webhook_status.setText(str(exc))
+            return
+        self.staff_webhook_status.setText("Sending safe connection test…")
+        self._start_webhook_worker(url=url, task=None)
+
+    def _notify_staff_task(self, task_id: str) -> None:
+        settings = self.agent_settings_store.settings
+        if not settings.enabled:
+            return
+        task = self.reception_agent.task_store.get(task_id)
+        if task is None:
+            return
+        try:
+            task = self.reception_agent.task_store.mark_delivery(
+                task.id, DeliveryStatus.SENDING, "Sending notification"
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.staff_webhook_status.setText(str(exc))
+            return
+        self._refresh_staff_tab()
+        self._start_webhook_worker(url=settings.url, task=task)
+
+    def _start_webhook_worker(
+        self, *, url: str, task: ReceptionTask | None
+    ) -> None:
+        worker = WebhookWorker(
+            self.webhook_connector, url, task=task, parent=self
+        )
+        worker.complete.connect(self._on_webhook_complete)
+        worker.finished.connect(partial(self._webhook_worker_finished, worker))
+        self.webhook_workers.append(worker)
+        worker.start()
+
+    def _on_webhook_complete(self, key: str, result: DeliveryResult) -> None:
+        if key == "__test__":
+            self.staff_webhook_status.setText(result.message)
+            return
+        status = DeliveryStatus.SENT if result.success else DeliveryStatus.FAILED
+        try:
+            self.reception_agent.task_store.mark_delivery(
+                key, status, result.message
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.staff_webhook_status.setText(str(exc))
+            return
+        self.staff_webhook_status.setText(f"{key}: {result.message}")
+        self._refresh_staff_tab()
+
+    def _webhook_worker_finished(self, worker: WebhookWorker) -> None:
+        if worker in self.webhook_workers:
+            self.webhook_workers.remove(worker)
+        worker.deleteLater()
 
     def _refresh_training_tab(self) -> None:
         language = self._combo_language(self.train_language)
@@ -1582,6 +2031,8 @@ class MainWindow(QMainWindow):
     def _on_tab_changed(self, index: int) -> None:
         if index != self.control_tab_index and self.control_enabled:
             self._disable_computer_control("Leaving the Computer control tab stopped it.")
+        if index == self.staff_tab_index:
+            self._refresh_staff_tab()
 
     def _on_control_mode_changed(self) -> None:
         self._refresh_control_mode_help()
@@ -1888,6 +2339,10 @@ class MainWindow(QMainWindow):
             and self.assistance_session.stage == AssistanceStage.READY
         )
         self.record_training_button.setEnabled(enabled and self.camera_ok)
+        video_idle = not (
+            self.video_import_worker and self.video_import_worker.isRunning()
+        )
+        self.import_training_video_button.setEnabled(enabled and video_idle)
         self.record_evaluation_button.setEnabled(
             enabled and self.camera_ok and evaluation_has_model
         )
@@ -1928,17 +2383,24 @@ class MainWindow(QMainWindow):
             self._render_assistance()
 
     def _capture_training_sample(self) -> None:
+        context = self._training_context()
+        if context is None:
+            return
+        if self.camera_worker.request_capture(context):
+            self._set_capture_buttons(False)
+
+    def _training_context(self) -> dict | None:
         person = self.person_id.text().strip()
         if not person:
             QMessageBox.warning(self, "Person ID needed", "Enter a short ID for this person.")
             self.person_id.setFocus()
-            return
+            return None
         language = self._combo_language(self.train_language)
         try:
             normalized_person = DatasetStore.safe_component(person)
         except ValueError as exc:
             QMessageBox.warning(self, "Person ID needed", str(exc))
-            return
+            return None
         final_test_people = {
             item.casefold() for item in self.evaluation.people(language)
         }
@@ -1948,15 +2410,69 @@ class MainWindow(QMainWindow):
                 "Keep final testing separate",
                 "This person has already been used for final testing and cannot be added to training.",
             )
-            return
-        context = {
+            return None
+        return {
             "purpose": "train",
             "language": language,
             "label": str(self.train_sign.currentData()),
             "person_id": normalized_person,
         }
-        if self.camera_worker.request_capture(context):
-            self._set_capture_buttons(False)
+
+    def _import_training_video(self) -> None:
+        if self.video_import_worker and self.video_import_worker.isRunning():
+            return
+        context = self._training_context()
+        if context is None:
+            return
+        answer = QMessageBox.question(
+            self,
+            "Confirm this training clip",
+            "Import only a short clip containing exactly the selected sign. Confirm that the person agreed to its use. SignBridge extracts landmarks and does not copy the raw video. Continue?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        filename, _filter = QFileDialog.getOpenFileName(
+            self,
+            "Choose one short sign video",
+            "",
+            "Video files (*.mp4 *.mov *.avi *.mkv *.m4v *.webm)",
+        )
+        if not filename:
+            return
+        self.video_import_context = context
+        self.video_import_worker = VideoImportWorker(Path(filename), self)
+        self.video_import_worker.complete.connect(self._video_import_complete)
+        self.video_import_worker.failed.connect(self._video_import_failed)
+        self.video_import_worker.finished.connect(self._video_import_finished)
+        self._set_capture_buttons(False)
+        self.training_status.setText("Reading the video and extracting landmarks…")
+        self.video_import_worker.start()
+
+    def _video_import_complete(self, sequence: object, quality: dict) -> None:
+        context = self.video_import_context
+        if context is None:
+            self._video_import_failed("The selected training details were lost.")
+            return
+        self._on_sequence_ready(sequence, context, quality)
+        if float(quality.get("hand_presence_ratio", 0.0)) >= MIN_HAND_PRESENCE_RATIO:
+            QMessageBox.information(
+                self,
+                "Video sample imported",
+                "One landmark sample was saved. The original video was not copied into SignBridge.",
+            )
+
+    def _video_import_failed(self, message: str) -> None:
+        self._set_capture_buttons(True)
+        self.training_status.setText("Video was not imported")
+        QMessageBox.warning(self, "Video import failed", message)
+
+    def _video_import_finished(self) -> None:
+        worker = self.video_import_worker
+        self.video_import_worker = None
+        self.video_import_context = None
+        if worker is not None:
+            worker.deleteLater()
+        self._set_capture_buttons(True)
 
     def _capture_evaluation_sample(self) -> None:
         language = self._combo_language(self.eval_language)
@@ -2012,7 +2528,10 @@ class MainWindow(QMainWindow):
             self.capture_progress.setValue(0)
             return
 
-        if ratio < MIN_HAND_PRESENCE_RATIO:
+        allow_unknown_training = (
+            purpose == "train" and context.get("label") == UNKNOWN_LABEL
+        )
+        if ratio < MIN_HAND_PRESENCE_RATIO and not allow_unknown_training:
             QMessageBox.warning(
                 self,
                 "Hands were not clear",
@@ -2228,6 +2747,9 @@ class MainWindow(QMainWindow):
             self._render_assistance()
             return
         self.assistance_action_results.append(action_result)
+        if action_result.task_id is not None:
+            self._notify_staff_task(action_result.task_id)
+            self._refresh_staff_tab()
         if action_result.status == AgentActionStatus.LOCAL_TASK:
             self.assistance_feedback = (
                 "Request confirmed. The agent created a local task for staff."
@@ -2284,14 +2806,17 @@ class MainWindow(QMainWindow):
         )
         self._render_assistance()
 
-    def _clear_assistance_actions(self) -> None:
-        task_ids = (
-            result.task_id
-            for result in self.assistance_action_results
-            if result.task_id is not None
-        )
-        self.reception_agent.complete_tasks(task_ids)
+    def _clear_assistance_actions(self, *, complete_tasks: bool = False) -> None:
+        if complete_tasks:
+            task_ids = (
+                result.task_id
+                for result in self.assistance_action_results
+                if result.task_id is not None
+            )
+            self.reception_agent.complete_tasks(task_ids)
         self.assistance_action_results.clear()
+        if hasattr(self, "staff_task_table"):
+            self._refresh_staff_tab()
 
     def _complete_assistance_session(self) -> None:
         try:
@@ -2300,7 +2825,7 @@ class MainWindow(QMainWindow):
             self.assistance_feedback = str(exc)
             self._render_assistance()
             return
-        self._clear_assistance_actions()
+        self._clear_assistance_actions(complete_tasks=True)
         self.assist_staff_reply.clear()
         self.assistance_result_text = "—"
         self.assistance_result_confidence = None
@@ -2526,4 +3051,10 @@ class MainWindow(QMainWindow):
         self.camera_worker.stop()
         if self.training_worker and self.training_worker.isRunning():
             self.training_worker.wait(3000)
+        if self.video_import_worker and self.video_import_worker.isRunning():
+            self.video_import_worker.requestInterruption()
+            self.video_import_worker.wait(5000)
+        for worker in list(self.webhook_workers):
+            if worker.isRunning():
+                worker.wait(5500)
         event.accept()

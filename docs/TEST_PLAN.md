@@ -35,5 +35,18 @@ Accuracy should not fall by more than 10 percentage points between conditions.
 - Undo, clear and correction choices work.
 - English and Arabic speech work without event Wi-Fi.
 
+## Agent and staff workflow
+
+- Run at least 20 complete confirmed requests with target users.
+- A wrong or rejected camera result must create zero tasks and zero notifications.
+- Each confirmed help request must create exactly one task.
+- Close and reopen the app; unfinished tasks must still appear in **Staff desk**.
+- Staff can accept, reply and complete every task without technical help.
+- Record corrections, duplicate tasks, missed tasks and end-to-end completion time.
+- If a webhook is enabled, test its safe test message first. Record every failed delivery and keep the local Staff desk as the fallback.
+- A “Sent” webhook status means the endpoint accepted the message, not that a human read it.
+
+Suggested workflow target for the first pilot: at least 18 of 20 requests completed correctly, zero action from an unconfirmed sign, zero duplicate tasks and median completion under two minutes. These are prototype targets, not accessibility certification.
+
 If these checks fail, reduce the vocabulary or replace confusing signs.
 
