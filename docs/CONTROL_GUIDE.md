@@ -60,13 +60,13 @@ Restart Windows after a driver update, then open SignBridge. A successful fix wi
 8. Press **Continue with another sign** to keep the earlier reply in memory.
 9. Press **End and clear signer session** before the next person uses the app. This clears the conversation but leaves the task outcome under staff control.
 
-Press **Competition demo** to hide setup and experimental tabs during a presentation. Press **Show setup tools** to restore them.
+Press **Competition demo** to hide setup and experimental tabs during a presentation. It accepts only `Help`, followed by directions, appointment help or interpreter request. Press **Show setup tools** to restore the broader prototype controls.
 
 SignBridge will not speak or run an action until the sign and complete request have both been confirmed. The choices after a sign are predefined buttons; they are not a translated sentence. A staff webhook is optional; booking and interpreter services are not connected.
 
 ## 5. Recognize a sign
 
-The **Recognize**, **Train model** and **Final test** tabs are for the 8-sign language prototype. Choose ASL or Emirati Sign Language, press the recording button, wait for the countdown and perform one sign while the bar fills. In **Train model**, **Import short video** can use one consented 2–5 second clip containing exactly the selected sign.
+The **Recognize**, **Train model** and **Final test** tabs are for the 8-sign candidate vocabulary. Choose ASL or Emirati Sign Language, press the recording button, wait for the countdown and perform one sign while the bar fills. Training requires the consent box. **Import short video** can use one consented 2–5 second clip containing exactly the selected sign.
 
 This is separate from computer control.
 

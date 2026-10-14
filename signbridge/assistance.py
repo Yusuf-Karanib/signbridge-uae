@@ -26,6 +26,11 @@ class ConversationTurn:
     locale: str
 
 
+COMPETITION_ACTION_IDS = frozenset(
+    {"directions", "appointment", "interpreter"}
+)
+
+
 REQUEST_OPTIONS: dict[str, dict[str, tuple[RequestOption, ...]]] = {
     "asl": {
         "hello": (
@@ -143,16 +148,30 @@ class AssistanceSession:
         self.stage = AssistanceStage.CHOOSE_REQUEST
         return options
 
-    def available_options(self) -> tuple[RequestOption, ...]:
+    def available_options(
+        self, allowed_ids: frozenset[str] | set[str] | None = None
+    ) -> tuple[RequestOption, ...]:
         if self.proposed_label is None:
             return ()
-        return REQUEST_OPTIONS.get(self.language, {}).get(self.proposed_label, ())
+        options = REQUEST_OPTIONS.get(self.language, {}).get(self.proposed_label, ())
+        if allowed_ids is None:
+            return options
+        return tuple(option for option in options if option.id in allowed_ids)
 
-    def choose_request(self, option_id: str) -> RequestOption:
+    def choose_request(
+        self,
+        option_id: str,
+        allowed_ids: frozenset[str] | set[str] | None = None,
+    ) -> RequestOption:
         if self.stage != AssistanceStage.CHOOSE_REQUEST:
             raise ValueError("Confirm the sign before choosing a request")
         option = next(
-            (item for item in self.available_options() if item.id == option_id), None
+            (
+                item
+                for item in self.available_options(allowed_ids)
+                if item.id == option_id
+            ),
+            None,
         )
         if option is None:
             raise ValueError("That request is not available for this sign")

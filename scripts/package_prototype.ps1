@@ -50,6 +50,17 @@ foreach ($directory in $sourceDirectories) {
 
 Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $output -Force
 $expandedOutput = Join-Path $projectRoot "outputs\SignBridge-UAE-prototype"
+$resolvedProjectRoot = [System.IO.Path]::GetFullPath($projectRoot)
+$resolvedExpandedOutput = [System.IO.Path]::GetFullPath($expandedOutput)
+if (-not $resolvedExpandedOutput.StartsWith(
+    $resolvedProjectRoot + [System.IO.Path]::DirectorySeparatorChar,
+    [System.StringComparison]::OrdinalIgnoreCase
+)) {
+    throw "Refusing to replace an output directory outside the project."
+}
+if (Test-Path -LiteralPath $expandedOutput) {
+    Remove-Item -LiteralPath $expandedOutput -Recurse -Force
+}
 New-Item -ItemType Directory -Path $expandedOutput -Force | Out-Null
 Copy-Item -Path (Join-Path $stage "*") -Destination $expandedOutput -Recurse -Force
 Write-Output $output

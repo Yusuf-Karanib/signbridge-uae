@@ -67,6 +67,11 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual(store.delete_person("tester 01"), 4)
             self.assertEqual(store.people("asl"), set())
             self.assertFalse(report_path.exists())
+            corrupt = Path(temp) / "asl" / "corrupt.json"
+            corrupt.write_text("not-json", encoding="utf-8")
+            self.assertEqual(store.delete_person("tester 01"), 0)
+            self.assertEqual(store.last_delete_skipped, 1)
+            self.assertTrue(corrupt.exists())
 
 
 if __name__ == "__main__":

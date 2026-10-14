@@ -4,6 +4,7 @@ The model passes only if all important checks pass.
 
 ## People
 
+- Record only after the participant-consent box is checked.
 - Test with at least two people, preferably three, whose recordings were not used for training.
 - Each person performs every sign ten times.
 - Each person also performs at least twenty unsupported gestures or resting movements.
@@ -46,6 +47,7 @@ Accuracy should not fall by more than 10 percentage points between conditions.
 - If a webhook is enabled, test its safe test message first. Record every failed delivery and keep the local Staff desk as the fallback.
 - A “Sent” webhook status means the endpoint accepted the message, not that a human read it.
 - Export the privacy-safe evidence report and confirm that it contains no staff replies, webhook URL, video or participant identifiers.
+- Separately record attempts that never created a task and time the full workflow from the first attempt. The current task export alone does not yet capture those measurements.
 
 Suggested workflow target for the first pilot: at least 18 of 20 requests completed correctly, zero action from an unconfirmed sign, zero duplicate tasks and median completion under two minutes. These are prototype targets, not accessibility certification.
 

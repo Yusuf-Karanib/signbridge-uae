@@ -1,6 +1,6 @@
 # Read this when you return
 
-The software foundation is built and tested. It has 4 ASL choices, 4 Emirati Sign Language choices, improved hand tracking, webcam or short-video training, text, speech, confidence rejection, a controlled reception agent, a persistent Staff desk, a focused competition-demo view, privacy-safe evidence export, deletion controls, an optional staff webhook, a separate final-test report and an optional computer-control tab.
+The software foundation is built and tested. It has 4 ASL candidate choices, 4 Emirati Sign Language candidate choices, improved hand tracking, consented webcam or short-video training, text, speech, confidence rejection, a controlled reception workflow, a persistent Staff desk, a focused competition-demo view, aggregate evidence export, deletion controls, an optional staff webhook, a separate final-test report and an optional computer-control tab.
 
 For the full beginner explanation, read `docs/FULL_BEGINNER_GUIDE.md`.
 
@@ -8,14 +8,12 @@ A personalized ASL model trained only on Yusuf exists. It is not proof that the 
 
 ## Your next actions
 
-1. Start the app with `Start SignBridge.vbs`; it does not keep PowerShell open.
-2. Ask fluent signers to check all 8 linked sign forms.
-3. If you are the demonstrator, record 20 to 30 varied attempts per class. Remote training people can send separate 2–5 second clips for **Import short video**.
-4. Add more ASL **Help** and **OTHER / NO SIGN** examples, then retrain the ASL model.
-5. Collect Emirati examples and train that model.
-6. Test at least one completely new person in **Final test**; two or three is better.
-7. Test a complete **SignBridge agent** interaction through the **Staff desk**, including a second sign after a staff reply, and record every correction or false action.
-8. Remove any sign that misses the test targets.
-9. After at least 20 honestly labelled task trials, export the competition evidence report from **Staff desk**.
+1. On 19 October, open Howspace, record the exact deadline and ask whether adapting the earlier public detector into this new agent capability is eligible.
+2. Read `docs/COMPETITION_GUIDE.md`; it contains the corrected competition plan.
+3. Start the app with `Start SignBridge.vbs`; it does not keep PowerShell open.
+4. Ask a fluent signer and Deaf target users to validate the `Help` flow first.
+5. Confirm consent before collecting any landmark sample.
+6. Retrain and test one language with completely unseen people before treating the second as working.
+7. Run 20 complete Staff-desk trials only after the remaining agent-plan and attempt-evidence features are built.
 
-Do not call it a full translator. Call it an **8-sign bilingual isolated-sign prototype with a controlled reception agent**. Tasks are local unless an administrator enables the optional webhook; the webhook still does not make bookings. The computer-control gestures are a separate generic-gesture experiment.
+Do not call it a full translator or a working bilingual MVP. Call it a **bounded sign-assisted reception prototype**. Tasks are local unless an administrator enables the optional webhook; the webhook still does not make bookings. The computer-control gestures are a separate generic-gesture experiment and are not part of the competition pitch.

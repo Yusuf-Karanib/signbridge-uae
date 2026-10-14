@@ -1,6 +1,6 @@
 # Research basis and dataset decision
 
-Checked on 28 September 2026.
+Originally researched on 28 September 2026 and rechecked on 14 October 2026.
 
 ## What this build uses
 
@@ -35,7 +35,7 @@ This keeps the useful collect-train-demonstrate flow from Nicholas Renotte's Ten
 - General Arabic Sign Language data cannot automatically validate a UAE regional form.
 - Large video models need more data and computing time than this event deadline allows.
 
-The honest first target is 8 isolated, prompted signs. Continuous conversation translation remains a later research project.
+The repository keeps eight candidate isolated signs. For the competition, the honest first recognition target is the externally validated `Help` sign plus strong unknown/rejection testing; the other signs should not enter the pitch unless they pass unseen-user tests. Continuous conversation translation remains a later research project.
 
 MediaPipe can also return face landmarks, but this version does not classify facial grammar. A future sentence system must model facial and other non-manual information rather than simply joining isolated sign guesses.
 

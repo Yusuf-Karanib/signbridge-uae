@@ -2,12 +2,12 @@
 
 Public repository: [github.com/Yusuf-Karanib/signbridge-uae](https://github.com/Yusuf-Karanib/signbridge-uae)
 
-SignBridge is a local webcam prototype for **8 isolated signs** plus a confirmation-first reception agent:
+SignBridge is a local webcam prototype configured for **8 candidate isolated signs** plus a confirmation-first reception workflow:
 
 - 4 American Sign Language signs with English text and speech.
 - 4 Emirati Sign Language signs with Arabic text and speech.
 
-It recognizes one prompted sign at a time. The **SignBridge agent** turns a confirmed sign into one clear reception-desk request, runs a matching safe local action, remembers staff replies between turns, and clears the temporary session when finished. It is not a full sign-language translator.
+It is designed to recognize one prompted sign at a time after local training. The current saved ASL model is personalized and unvalidated, and no Emirati model exists yet. The **SignBridge agent** turns a confirmed sign into one clear reception-desk request, runs a matching safe local action, remembers staff replies between turns, and clears the temporary session when finished. It is not a full sign-language translator.
 
 For a complete beginner-friendly explanation of the idea, design, screens, training,
 testing, files and event demonstration, read `docs/FULL_BEGINNER_GUIDE.md`.
@@ -22,13 +22,13 @@ For the bounded championship scope and demonstration, read
 2. Double-click `Start SignBridge.vbs`. It opens the app without a terminal window.
 3. Open **Train model**.
 4. Choose a language and enter a short Person ID.
-5. Record 20 to 30 varied examples per class from the demonstrator, or use **Import short video** for a consented 2–5 second clip containing exactly one selected sign. For unseen-person testing, use several training people and keep different people for Final test.
+5. Confirm the person's consent, then record 20 to 30 varied examples per class from the demonstrator, or use **Import short video** for a consented 2–5 second clip containing exactly one selected sign. For unseen-person testing, use several training people and keep different people for Final test.
 6. Press **Train or update this language model**.
 7. Open **SignBridge agent** and record one sign.
 8. Confirm the camera suggestion, choose the exact request, and confirm the full sentence.
 9. Open **Staff desk** to accept the saved task, type a reply and complete it. You can optionally connect a tested HTTPS Slack/Teams-compatible webhook.
 10. Use **Final test** with people who were never used for training.
-11. For a focused presentation, press **Competition demo** to show only the visitor agent and Staff desk.
+11. For a focused presentation, press **Competition demo**. It shows only the visitor agent and Staff desk and permits only `Help` followed by directions, appointment help or an interpreter request.
 
 The camera panel shows live FPS. If the default webcam is wrong or busy, choose
 camera 1 or 2 and press **Restart**; saved samples and models are unaffected.
@@ -63,14 +63,14 @@ The exact checklist is in `docs/TEST_PLAN.md`.
 8. A small rule-based action engine creates persistent local reception tasks and can use an earlier staff reply during the same session.
 9. The Staff desk records successful, wrong-action and cancelled outcomes. An optional webhook can notify a real staff channel only after it is explicitly configured and enabled.
 10. Ending the signer session clears temporary conversation text. The staff task remains until staff records its real outcome.
-11. A privacy-safe evidence report measures completion, false actions, corrections and response time without exporting replies or participant IDs.
+11. A privacy-safe evidence report measures task completion, false actions, corrections and staff completion time without exporting replies or participant IDs.
 
 Speech is manual by default so a wrong result is not spoken automatically. Automatic speech can be enabled for a controlled demo.
 
-Only landmark coordinates are stored by the training screen. Imported videos are read once and are not copied into SignBridge.
-Participant records and affected trained models can be permanently deleted by Person ID.
+Only landmark coordinates are stored by the training screen. Explicit consent confirmation is required and recorded with new samples. Imported videos are read once and are not copied into SignBridge.
+Participant records can be permanently deleted by Person ID. Because one model may mix several people's samples, deleting any participant also removes every trained model and requires retraining.
 
-## Current vocabulary
+## Configured candidate vocabulary
 
 - ASL: `Hello`, `Help`, `Water`, `Again`.
 - Emirati Sign Language: `Drink`, `Help`, `Wait`, `Repeat`.
@@ -97,7 +97,8 @@ The dataset and licence comparison is in `docs/RESEARCH_BASIS.md`.
 - The agent supports a short conversation made from predefined, confirmed requests.
 - Local task IDs persist on this computer. They do not change a booking or request an interpreter. A staff notification is external only when you deliberately configure and enable a webhook.
 - Facial grammar is not classified in this version.
-- Source entries are linked, but recorded performances remain unverified until fluent signers review them.
+- Source entries are linked, but recorded performances remain unverified until fluent signers and target users review them.
+- The shared ZIP contains no personal samples or trained model. It must be set up and trained before camera recognition works on another computer.
 - Confidence is a model score, not proof.
 - Not suitable for emergencies, medical decisions or replacing interpreters.
 - Arabic speech requires an Arabic Windows voice to be installed.

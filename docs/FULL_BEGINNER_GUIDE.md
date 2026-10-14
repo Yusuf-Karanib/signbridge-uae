@@ -6,9 +6,9 @@ For a short operating manual for the latest camera and computer controls, read `
 
 ## Read these three parts first
 
-1. **What exists now:** the application, improved hand tracking, live and short-video training, testing, text, speech, a controlled reception agent, a persistent Staff desk, a focused competition-demo view, privacy-safe evidence export, participant deletion, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists. No Emirati model exists yet.
+1. **What exists now:** the application, improved hand tracking, consented live and short-video training, testing, text, speech, a controlled reception workflow, a persistent Staff desk, a focused competition-demo view, aggregate evidence export, participant deletion, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists but is unreliable and unvalidated. No Emirati model exists yet.
 2. **What must happen next:** fluent signers must validate the 8 sign forms, more real people must record examples, the Emirati model must be trained, the ASL model must be strengthened, and completely new people must test both models.
-3. **What it is:** a bilingual prototype that recognizes one of 4 ASL signs or one of 4 Emirati signs during a short prompted recording. The SignBridge agent can turn confirmed results into predefined reception-desk requests, run safe local actions and remember a short session. It is not a full sign-language or sentence translator.
+3. **What it is:** a prototype configured for 4 ASL signs and 4 Emirati signs during a short prompted recording. Those two modes are not yet validated working recognizers. The SignBridge workflow can turn confirmed results into predefined reception-desk requests, run safe local actions and remember a short session. It is not a full sign-language or sentence translator.
 
 The difference between **software working** and **recognition working** is important. The software opens and the camera tracks correctly. Recognition cannot work until suitable human examples are recorded and the models are trained.
 
@@ -77,7 +77,7 @@ SignBridge keeps that workflow but does not copy the older object-detection desi
 
 Sign languages have their own grammar. Meaning can depend on two hands, movement, body position, facial expression and context. Joining individual word guesses does not create a correct sentence translator. Continuous translation needs much more data, specialist review and a different model.
 
-## 4. What the system recognizes
+## 4. What the system is configured to recognize
 
 The user chooses the active language. The two languages are never treated as direct translations of each other.
 
@@ -186,7 +186,7 @@ This is the simple work queue for the person helping signers.
 - Tasks are stored in `data/agent_tasks.json`; sign video is not stored there.
 - The optional webhook can notify a Slack, Teams workflow or compatible HTTPS endpoint. It is off by default. Use **Send safe test** before enabling it for real tasks.
 - A successful notification means only that the endpoint accepted the message. It does not prove a person read or completed it.
-- **Export privacy-safe evidence report** produces aggregate completion, false-action, correction and timing measurements without replies or participant IDs.
+- **Export privacy-safe evidence report** produces aggregate task completion, false-action, correction and staff-completion timing without replies or participant IDs.
 - The privacy controls can forget the saved webhook URL or delete all local task history.
 
 ### Recognize
@@ -226,10 +226,10 @@ This is the data collection and model training screen.
 - Open the exact reference link.
 - Enter the fluent signer's or interpreter's name after review.
 - Mark the selected form reviewed.
-- Record training attempts live, or press **Import short video** for one consented 2–5 second clip containing exactly the selected sign.
+- Check the consent confirmation, then record training attempts live or press **Import short video** for one consented 2–5 second clip containing exactly the selected sign. New sample metadata records that consent was confirmed.
 - Use **Remove last sample** when the latest recording was clearly wrong. It is moved to a recoverable trash folder.
 - Train or update the selected language model after enough data is collected.
-- To honour a withdrawal, enter the participant's Person ID in the privacy section. Their training and final-test records are permanently deleted. Any trained model influenced by them is also removed and must be retrained.
+- To honour a withdrawal, enter the participant's Person ID in the privacy section. Readable matching training and final-test records are permanently deleted, every trained language model is removed for safe retraining, and any unreadable file is reported for manual review.
 
 The sample count shows a practical target of 30 for each class. Five examples per class is the technical minimum for checking whether the software pipeline can train, so you can start testing before reaching 30. A small dataset is not enough for a general accuracy claim.
 
@@ -274,7 +274,7 @@ Control always starts off. Changing modes requires arming again. Leaving the tab
 - Press **Full screen** or `F11` for full-screen mode.
 - Press `Escape`, `F11` or **Exit full screen** to leave full-screen mode.
 - Press **Reset layout** if the window or divider becomes awkward.
-- Press **Competition demo** to hide training, testing, recognition-only and computer-control tabs. Press **Show setup tools** to restore them.
+- Press **Competition demo** to hide training, testing, recognition-only and computer-control tabs. This mode accepts only `Help`, followed by directions, appointment help or interpreter request. Press **Show setup tools** to restore the broader prototype.
 - Each controls page scrolls vertically when the window is too short to show every function at once.
 - On a narrow controls panel, the tab names automatically shorten to **Agent**, **Use**, **Train**, **Test**, **Desk** and **PC**.
 
@@ -534,7 +534,7 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 - Local tasks persist, can be accepted/replied to/completed and produce basic workflow measurements.
 - Staff can label successful, wrong-action and cancelled outcomes instead of treating every closed task as success.
 - The evidence report excludes replies, webhook URLs, camera data and participant identifiers.
-- Participant deletion removes their training and final-test records and any affected trained model.
+- Participant deletion removes readable matching training and final-test records, removes all trained language models for safe retraining, and warns about files it could not read.
 - Unsafe webhook URLs are rejected, and webhook payloads are tested without sending real requests.
 - A short training video can be converted into the same 32-step landmark format without storing the raw video.
 - A second turn can reuse an earlier staff reply.

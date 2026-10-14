@@ -1,14 +1,23 @@
 # What comes after the event prototype
 
-## Now: event prototype
+## Current software foundation
 
 - Webcam input.
-- 4 isolated ASL signs and 4 isolated Emirati signs.
+- 4 candidate ASL signs and 4 candidate Emirati signs.
 - The user chooses the language.
 - One recorded attempt produces text, confidence and optional speech.
 - Unsupported or unclear attempts should be rejected.
 
-## Now: controlled reception agent
+The software is not yet a validated bilingual recognizer. The local ASL model is personalized and has no unseen-person score; no Emirati model exists.
+
+## Competition scope now
+
+- Competition demo accepts only the `Help` sign.
+- It offers only directions, appointment help and interpreter request.
+- Interpreter request is the hero scenario.
+- Best Societal AI Agent remains the recommended category.
+
+## Current controlled reception workflow
 
 - One confirmed sign opens a small set of predefined reception-desk requests.
 - The signer confirms both the sign and the complete request before speech or action.
@@ -19,7 +28,7 @@
 - Ending the signer interaction clears temporary conversation text. Staff independently records the persistent task's real outcome.
 - An optional, administrator-configured HTTPS webhook can notify a real staff channel. It does not create bookings or request interpreters.
 
-The next proof is not a larger vocabulary. Test whether real users can finish the supported interaction without a false action, how often they need correction, whether the action selected was correct, and how long it takes.
+The next build is not a larger vocabulary. Add a visible goal-plan-tool-wait-verify-stop lifecycle, attempt-level evidence, visitor-confirmed outcomes and remote Final-test video import. Then test whether real users can finish the supported interaction without a false action.
 
 ## Now: first real service connection
 

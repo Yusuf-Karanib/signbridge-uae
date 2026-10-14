@@ -32,6 +32,7 @@ class EvaluationStore:
 
     def __init__(self, directory: Path = EVALUATIONS_DIR):
         self.directory = Path(directory)
+        self.last_delete_skipped = 0
         self.directory.mkdir(parents=True, exist_ok=True)
 
     def save_attempt(
@@ -116,6 +117,7 @@ class EvaluationStore:
 
     def delete_person(self, person_id: str, language: str | None = None) -> int:
         """Permanently delete one person's final-test attempts."""
+        self.last_delete_skipped = 0
         safe_person = DatasetStore.safe_component(person_id).casefold()
         safe_language = DatasetStore.safe_component(language) if language else None
         roots = [self.directory / safe_language] if safe_language else [
@@ -135,6 +137,7 @@ class EvaluationStore:
                     path.unlink()
                     removed += 1
                 except (OSError, ValueError, json.JSONDecodeError):
+                    self.last_delete_skipped += 1
                     continue
         for affected_language in affected_languages:
             report = self.directory / f"report_{affected_language}.json"

@@ -5,7 +5,7 @@ The full current control instructions are in `docs/CONTROL_GUIDE.md`.
 1. Double-click `Start SignBridge.vbs` in the project folder. PowerShell is needed only for the first `setup.ps1` run.
 2. Open **Train model**.
 3. Open each exact source link and have a fluent signer check the form.
-4. For a personalized demo, record 20 to 30 varied examples for every class from the demonstrator. A remote person can send separate 2–5 second clips; select the sign and Person ID, then use **Import short video**.
+4. Confirm the participant-consent box. For a personalized demo, record 20 to 30 varied examples for every class from the demonstrator. A remote person can send separate 2–5 second clips; select the sign and Person ID, then use **Import short video**.
 5. For stronger testing, use two or three training people with 10 to 15 examples per class from each.
 6. Record varied `OTHER / NO SIGN` examples for every person.
 7. Use a different Person ID for every person.
@@ -16,7 +16,9 @@ The full current control instructions are in `docs/CONTROL_GUIDE.md`.
 12. A task is local unless an administrator configured and enabled the webhook. Even then, delivery does not prove a staff member read it.
 13. Press **Continue with another sign** to keep the conversation memory, or **End and clear signer session** when finished. Ending the signer session does not silently mark the staff task successful.
 14. Use **Final test** with at least one completely new person; two or three is better.
-15. Press **Competition demo** for the focused visitor-and-staff presentation. Export the aggregate evidence report from **Staff desk** after real trials.
+15. Press **Competition demo** for the focused visitor-and-staff presentation. This mode allows only `Help`, then directions, appointment help or interpreter request. Export the aggregate evidence report from **Staff desk** after real trials.
+
+The clean sharing ZIP intentionally contains no participant data or personal trained model. On another computer, run setup and train or import consented landmark samples before expecting camera recognition.
 
 For computer control, open **Computer control**, choose a mode, turn it on and hold an open palm for 1.5 seconds. Leave that tab or press **Stop** to disable it. These are generic shortcuts, not ASL or Emirati signs.
 
@@ -24,7 +26,7 @@ The simple **Recognize** screen keeps speech manual by default. The SignBridge a
 
 Before the event, get every sign you keep checked by fluent signers. Thirty recordings from one person do not prove unseen-person accuracy.
 
-This prototype recognizes isolated signs. It does not translate full conversations.
+This prototype is built for isolated signs, but its current camera models are not yet validated on unseen people. It does not translate full conversations.
 
 If the window does not open, run `diagnose_signbridge.bat` and read the visible error, or open `outputs/startup.log`.
 

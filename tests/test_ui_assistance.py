@@ -197,9 +197,29 @@ class AssistanceUiTests(unittest.TestCase):
         self.assertTrue(window.tabs.isTabVisible(window.staff_tab_index))
         self.assertFalse(window.tabs.isTabVisible(window.training_tab_index))
         self.assertFalse(window.tabs.isTabVisible(window.control_tab_index))
+        self.assertEqual(window.assist_manual_sign.count(), 1)
+        self.assertEqual(window.assist_manual_sign.currentData(), "help")
+
+        window._use_manual_assistance_sign()
+        window._confirm_assistance_sign()
+        visible_options = window.assistance_session.available_options(
+            frozenset({"directions", "appointment", "interpreter"})
+        )
+        self.assertEqual(
+            {option.id for option in visible_options},
+            {"directions", "appointment", "interpreter"},
+        )
+        with self.assertRaises(ValueError):
+            window.assistance_session.choose_request(
+                "other",
+                allowed_ids=frozenset(
+                    {"directions", "appointment", "interpreter"}
+                ),
+            )
 
         window._toggle_demo_mode()
         self.assertTrue(window.tabs.isTabVisible(window.training_tab_index))
+        self.assertEqual(window.assist_manual_sign.count(), 4)
         window.close()
 
     def test_no_hand_sample_is_allowed_only_for_other_training(self) -> None:
@@ -226,6 +246,28 @@ class AssistanceUiTests(unittest.TestCase):
         ):
             window._on_sequence_ready(object(), context, quality)
             save_sample.assert_not_called()
+        window.close()
+
+    def test_live_training_requires_explicit_consent(self) -> None:
+        window = self._window()
+        window.person_id.setText("trainer-01")
+
+        with patch("signbridge.ui.QMessageBox.warning") as warning:
+            self.assertIsNone(window._training_context())
+            warning.assert_called_once()
+
+        window.training_consent_checkbox.setChecked(True)
+        context = window._training_context()
+        self.assertIsNotNone(context)
+        self.assertTrue(context["consent_confirmed"])
+        window.close()
+
+    def test_broken_saved_model_does_not_stop_the_app(self) -> None:
+        with patch("signbridge.ui.load_model", side_effect=ValueError("old model")):
+            window = self._window()
+
+        self.assertTrue(window.model_load_errors)
+        self.assertTrue(all(bundle is None for bundle in window.model_cache.values()))
         window.close()
 
 

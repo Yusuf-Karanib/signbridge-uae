@@ -31,6 +31,7 @@ class DatasetStore:
     def __init__(self, samples_dir: Path = SAMPLES_DIR, trash_dir: Path = TRASH_DIR):
         self.samples_dir = Path(samples_dir)
         self.trash_dir = Path(trash_dir)
+        self.last_delete_skipped = 0
         self.samples_dir.mkdir(parents=True, exist_ok=True)
         self.trash_dir.mkdir(parents=True, exist_ok=True)
 
@@ -48,6 +49,8 @@ class DatasetStore:
         person_id: str,
         sequence: np.ndarray,
         quality: dict | None = None,
+        consent_confirmed: bool = False,
+        capture_source: str = "unknown",
     ) -> Path:
         person_id = self.safe_component(person_id)
         language = self.safe_component(language)
@@ -67,6 +70,8 @@ class DatasetStore:
             "person_id": person_id,
             "captured_at": timestamp.isoformat(),
             "quality": quality or {},
+            "consent_confirmed": bool(consent_confirmed),
+            "capture_source": str(capture_source).strip() or "unknown",
         }
         np.savez_compressed(path, sequence=sequence, metadata=json.dumps(metadata))
         return path
@@ -124,6 +129,7 @@ class DatasetStore:
 
     def delete_person(self, person_id: str, language: str | None = None) -> int:
         """Permanently delete one person's landmark samples, including trash."""
+        self.last_delete_skipped = 0
         safe_person = self.safe_component(person_id).casefold()
         safe_language = self.safe_component(language) if language else None
         removed = 0
@@ -140,6 +146,7 @@ class DatasetStore:
                     path.unlink()
                     removed += 1
                 except (OSError, KeyError, ValueError, json.JSONDecodeError):
+                    self.last_delete_skipped += 1
                     continue
             for directory in sorted(
                 (item for item in root.rglob("*") if item.is_dir()),

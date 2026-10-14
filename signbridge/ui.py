@@ -39,7 +39,11 @@ from PySide6.QtWidgets import (
 )
 
 from signbridge.agent import AgentActionResult, AgentActionStatus, ReceptionAgent
-from signbridge.assistance import AssistanceSession, AssistanceStage
+from signbridge.assistance import (
+    COMPETITION_ACTION_IDS,
+    AssistanceSession,
+    AssistanceStage,
+)
 from signbridge.camera import CameraWorker
 from signbridge.classifier import (
     delete_language_model,
@@ -340,14 +344,18 @@ class MainWindow(QMainWindow):
         self.evaluation = EvaluationStore()
         self.validation = ValidationStore()
         self.speech = SpeechService(self)
-        self.model_cache: dict[str, dict | None] = {
-            language: load_model(
-                language,
-                expected_labels=list(self.vocabulary.pack(language).sign_ids)
-                + [UNKNOWN_LABEL],
-            )
-            for language in self.vocabulary.packs
-        }
+        self.model_cache: dict[str, dict | None] = {}
+        self.model_load_errors: dict[str, str] = {}
+        for language in self.vocabulary.packs:
+            try:
+                self.model_cache[language] = load_model(
+                    language,
+                    expected_labels=list(self.vocabulary.pack(language).sign_ids)
+                    + [UNKNOWN_LABEL],
+                )
+            except Exception as exc:
+                self.model_cache[language] = None
+                self.model_load_errors[language] = str(exc)
         self.history_entries: list[dict[str, str]] = []
         self.last_spoken: tuple[str, str] | None = None
         self.reception_agent = reception_agent or ReceptionAgent()
@@ -403,7 +411,7 @@ class MainWindow(QMainWindow):
         title = QLabel("SignBridge UAE")
         title.setObjectName("title")
         self.subtitle_label = QLabel(
-            "8-sign bilingual prototype  •  confirm intent  →  run safe action  →  reply"
+            "Limited sign-intent prototype  •  confirm intent  →  run safe action  →  reply"
         )
         self.subtitle_label.setObjectName("subtitle")
         title_group.addWidget(title)
@@ -968,6 +976,11 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.train_sign, 2, 1)
         grid.setColumnStretch(1, 1)
         setup_layout.addLayout(grid)
+        self.training_consent_checkbox = QCheckBox(
+            "I confirm this person agreed to local landmark training data being saved."
+        )
+        self.training_consent_checkbox.setChecked(False)
+        setup_layout.addWidget(self.training_consent_checkbox)
         self.reference_link = QLabel()
         self.reference_link.setOpenExternalLinks(True)
         self.reference_link.setWordWrap(True)
@@ -1300,6 +1313,9 @@ class MainWindow(QMainWindow):
         self.train_language.currentIndexChanged.connect(self._refresh_training_tab)
         self.eval_language.currentIndexChanged.connect(self._refresh_evaluation_tab)
         self.train_sign.currentIndexChanged.connect(self._refresh_training_status)
+        self.person_id.textChanged.connect(
+            lambda _text: self.training_consent_checkbox.setChecked(False)
+        )
         self.capture_use_button.clicked.connect(self._capture_for_use)
         self.assist_capture_button.clicked.connect(self._capture_for_assistance)
         self.assist_confirm_sign_button.clicked.connect(self._confirm_assistance_sign)
@@ -1389,12 +1405,23 @@ class MainWindow(QMainWindow):
             self.tabs.setTabVisible(index, not self.demo_mode_enabled)
         self.tabs.setTabVisible(self.assistance_tab_index, True)
         self.tabs.setTabVisible(self.staff_tab_index, True)
+        language = self._combo_language(self.assist_language)
+        self._clear_assistance_actions()
+        self.assistance_session.reset(language)
+        self._reset_assistance_evidence()
+        self.assistance_result_text = "—"
+        self.assistance_result_confidence = None
+        self._populate_assistance_signs()
         if self.demo_mode_enabled:
+            self.assistance_feedback = (
+                "Competition demo ready. Use the validated Help sign, then choose one of three desk goals."
+            )
             self.scope_label.setText(
-                "Competition demo: a confirmed supported sign becomes a bounded service-desk task, staff completes it, and the session stops. This is not full sign-language translation."
+                "Competition demo: Help can create only a directions, appointment-help or interpreter task after confirmation. This is not full sign-language translation."
             )
             self.demo_mode_button.setObjectName("primary")
         else:
+            self.assistance_feedback = "Setup tools restored. Ready for a new request."
             self.scope_label.setText(
                 "Prototype scope: 4 ASL signs + 4 Emirati signs. The controlled agent remembers a short session and runs local reception actions — not full sign-language translation."
             )
@@ -1402,6 +1429,7 @@ class MainWindow(QMainWindow):
         self.demo_mode_button.style().unpolish(self.demo_mode_button)
         self.demo_mode_button.style().polish(self.demo_mode_button)
         self._update_responsive_labels()
+        self._refresh_assistance_tab()
 
     def _reset_layout(self) -> None:
         if self.isFullScreen():
@@ -1504,7 +1532,11 @@ class MainWindow(QMainWindow):
         bundle = self.model_cache.get(language)
         reviewed = self.validation.reviewed_count(language, pack.sign_ids)
         if bundle is None:
-            model_text = "Not trained yet. Open Train model to record examples."
+            model_text = (
+                "Saved model could not be loaded. Retrain this language."
+                if language in self.model_load_errors
+                else "Not trained yet. Open Train model to record examples."
+            )
         else:
             metrics = bundle.get("metrics", {})
             if metrics.get("validated_on_unseen_people"):
@@ -1543,7 +1575,12 @@ class MainWindow(QMainWindow):
         current_label = self.assist_manual_sign.currentData()
         self.assist_manual_sign.blockSignals(True)
         self.assist_manual_sign.clear()
-        for sign in pack.signs:
+        signs = (
+            tuple(sign for sign in pack.signs if sign.id == "help")
+            if self.demo_mode_enabled
+            else pack.signs
+        )
+        for sign in signs:
             self.assist_manual_sign.addItem(f"{sign.output} ({sign.gloss})", sign.id)
         if current_label:
             index = self.assist_manual_sign.findData(current_label)
@@ -1554,12 +1591,15 @@ class MainWindow(QMainWindow):
     def _refresh_assistance_tab(self) -> None:
         language = self._combo_language(self.assist_language)
         pack = self.vocabulary.pack(language)
-        if self.assist_manual_sign.count() != len(pack.signs):
+        expected_sign_count = 1 if self.demo_mode_enabled else len(pack.signs)
+        if self.assist_manual_sign.count() != expected_sign_count:
             self._populate_assistance_signs()
         bundle = self.model_cache.get(language)
         if bundle is None:
             model_text = (
-                "Camera recognition is not trained yet. The manual correction fallback still works."
+                "Saved camera model could not be loaded. Retrain it; the manual fallback still works."
+                if language in self.model_load_errors
+                else "Camera recognition is not trained yet. The manual correction fallback still works."
             )
         else:
             metrics = bundle.get("metrics", {})
@@ -1619,7 +1659,12 @@ class MainWindow(QMainWindow):
         self.assist_use_manual_button.setEnabled(manual_allowed)
 
         self.assist_followup_card.setVisible(stage == AssistanceStage.CHOOSE_REQUEST)
-        options = session.available_options() if stage == AssistanceStage.CHOOSE_REQUEST else ()
+        allowed_ids = COMPETITION_ACTION_IDS if self.demo_mode_enabled else None
+        options = (
+            session.available_options(allowed_ids)
+            if stage == AssistanceStage.CHOOSE_REQUEST
+            else ()
+        )
         for button, option in zip(self.assist_followup_buttons, options):
             button.setText(option.button_text)
             button.setProperty("assistance_option_id", option.id)
@@ -2620,6 +2665,7 @@ class MainWindow(QMainWindow):
         context = self._training_context()
         if context is None:
             return
+        context["capture_source"] = "live_camera"
         if self.camera_worker.request_capture(context):
             self._set_capture_buttons(False)
 
@@ -2645,11 +2691,20 @@ class MainWindow(QMainWindow):
                 "This person has already been used for final testing and cannot be added to training.",
             )
             return None
+        if not self.training_consent_checkbox.isChecked():
+            QMessageBox.warning(
+                self,
+                "Consent confirmation needed",
+                "Confirm that this person agreed before saving training landmarks.",
+            )
+            self.training_consent_checkbox.setFocus()
+            return None
         return {
             "purpose": "train",
             "language": language,
             "label": str(self.train_sign.currentData()),
             "person_id": normalized_person,
+            "consent_confirmed": True,
         }
 
     def _import_training_video(self) -> None:
@@ -2658,6 +2713,7 @@ class MainWindow(QMainWindow):
         context = self._training_context()
         if context is None:
             return
+        context["capture_source"] = "imported_video"
         answer = QMessageBox.question(
             self,
             "Confirm this training clip",
@@ -2790,6 +2846,8 @@ class MainWindow(QMainWindow):
                 person_id=context["person_id"],
                 sequence=sequence,
                 quality=quality,
+                consent_confirmed=bool(context.get("consent_confirmed", False)),
+                capture_source=str(context.get("capture_source", "unknown")),
             )
             self.capture_state_label.setText("Training sample saved")
             self.capture_progress.setValue(0)
@@ -2871,7 +2929,10 @@ class MainWindow(QMainWindow):
         pack = self.vocabulary.pack(language)
         self.assistance_result_confidence = float(prediction.confidence)
         self.assistance_input_method = "camera"
-        if prediction.accepted:
+        competition_sign_allowed = (
+            not self.demo_mode_enabled or prediction.label == "help"
+        )
+        if prediction.accepted and competition_sign_allowed:
             sign = pack.sign_for_id(prediction.label)
             self.assistance_session.propose_sign(
                 language=language,
@@ -2887,7 +2948,9 @@ class MainWindow(QMainWindow):
             self.assistance_correction_used = True
             self.assistance_result_text = "Not sure"
             self.assistance_feedback = (
-                "Nothing was added, spoken or acted on. Conversation memory was kept. Record again or use the correction fallback."
+                "Competition demo accepts only the Help sign. Nothing was acted on."
+                if prediction.accepted and not competition_sign_allowed
+                else "Nothing was added, spoken or acted on. Conversation memory was kept. Record again or use the correction fallback."
             )
             alternatives = [
                 label
@@ -2949,7 +3012,12 @@ class MainWindow(QMainWindow):
         if not option_id:
             return
         try:
-            self.assistance_session.choose_request(str(option_id))
+            allowed_ids = (
+                COMPETITION_ACTION_IDS if self.demo_mode_enabled else None
+            )
+            self.assistance_session.choose_request(
+                str(option_id), allowed_ids=allowed_ids
+            )
         except ValueError as exc:
             self.assistance_feedback = str(exc)
             self._render_assistance()
@@ -3207,36 +3275,43 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "Person ID needed", str(exc))
             return
-        affected_models: set[str] = set()
-        for language, bundle in self.model_cache.items():
-            if person_id.casefold() in {
-                str(item).casefold() for item in (bundle or {}).get("people", [])
-            }:
-                affected_models.add(language)
-            if person_id.casefold() in {
-                item.casefold() for item in self.dataset.people(language)
-            }:
-                affected_models.add(language)
         answer = QMessageBox.question(
             self,
             "Permanently delete participant data",
-            f"Delete every training sample and final-test record for Person ID '{person_id}'? Any trained model that used this person will also be removed. This cannot be undone.",
+            f"Delete readable training and final-test records for Person ID '{person_id}'? To ensure derived data is removed, every trained language model will also be deleted and must be retrained. This cannot be undone.",
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
         sample_count = self.dataset.delete_person(person_id)
         evaluation_count = self.evaluation.delete_person(person_id)
         model_files = 0
-        for language in affected_models:
+        for language in self.vocabulary.packs:
             model_files += delete_language_model(language)
             self.model_cache[language] = None
+            self.model_load_errors.pop(language, None)
+        skipped = (
+            self.dataset.last_delete_skipped
+            + self.evaluation.last_delete_skipped
+        )
         self.privacy_person_id.clear()
         self._refresh_all()
-        QMessageBox.information(
-            self,
-            "Participant data deleted",
-            f"Deleted {sample_count} landmark samples and {evaluation_count} final-test records. Removed {model_files} trained-model files that could contain this person's influence.",
+        message = (
+            f"Deleted {sample_count} landmark samples and {evaluation_count} final-test records. "
+            f"Removed {model_files} trained-model files."
         )
+        if skipped:
+            QMessageBox.warning(
+                self,
+                "Deletion needs manual review",
+                message
+                + f" {skipped} unreadable files could not be checked; inspect or remove them manually.",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Participant data deleted",
+                message,
+            )
 
     def _mark_sign_reviewed(self) -> None:
         language = self._combo_language(self.train_language)
@@ -3313,6 +3388,7 @@ class MainWindow(QMainWindow):
 
     def _training_complete(self, language: str, bundle: dict) -> None:
         self.model_cache[language] = bundle
+        self.model_load_errors.pop(language, None)
         self.train_model_button.setEnabled(True)
         self._refresh_all()
         metrics = bundle.get("metrics", {})
