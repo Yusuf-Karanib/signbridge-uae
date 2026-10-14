@@ -13,6 +13,8 @@ For a complete beginner-friendly explanation of the idea, design, screens, train
 testing, files and event demonstration, read `docs/FULL_BEGINNER_GUIDE.md`.
 For the exact camera, slide, volume and mouse controls in the current version,
 read `docs/CONTROL_GUIDE.md`.
+For the bounded championship scope and demonstration, read
+`docs/COMPETITION_GUIDE.md`.
 
 ## Start it
 
@@ -26,6 +28,7 @@ read `docs/CONTROL_GUIDE.md`.
 8. Confirm the camera suggestion, choose the exact request, and confirm the full sentence.
 9. Open **Staff desk** to accept the saved task, type a reply and complete it. You can optionally connect a tested HTTPS Slack/Teams-compatible webhook.
 10. Use **Final test** with people who were never used for training.
+11. For a focused presentation, press **Competition demo** to show only the visitor agent and Staff desk.
 
 The camera panel shows live FPS. If the default webcam is wrong or busy, choose
 camera 1 or 2 and press **Restart**; saved samples and models are unaffected.
@@ -58,12 +61,14 @@ The exact checklist is in `docs/TEST_PLAN.md`.
 6. Low-confidence results are rejected instead of guessed.
 7. The SignBridge agent requires confirmation of both the sign and the complete request before speech or action.
 8. A small rule-based action engine creates persistent local reception tasks and can use an earlier staff reply during the same session.
-9. The Staff desk tracks pending, accepted and completed tasks. An optional webhook can notify a real staff channel only after it is explicitly configured and enabled.
-10. Completing the signer session clears temporary conversation text and closes its related local tasks.
+9. The Staff desk records successful, wrong-action and cancelled outcomes. An optional webhook can notify a real staff channel only after it is explicitly configured and enabled.
+10. Ending the signer session clears temporary conversation text. The staff task remains until staff records its real outcome.
+11. A privacy-safe evidence report measures completion, false actions, corrections and response time without exporting replies or participant IDs.
 
 Speech is manual by default so a wrong result is not spoken automatically. Automatic speech can be enabled for a controlled demo.
 
 Only landmark coordinates are stored by the training screen. Imported videos are read once and are not copied into SignBridge.
+Participant records and affected trained models can be permanently deleted by Person ID.
 
 ## Current vocabulary
 

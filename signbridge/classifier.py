@@ -309,6 +309,19 @@ def load_model(
     return bundle
 
 
+def delete_language_model(
+    language: str, directory: Path = TRAINED_MODELS_DIR
+) -> int:
+    """Remove a trained model and metrics so deleted participant data is not retained."""
+    removed = 0
+    for suffix in (".joblib", ".json"):
+        path = Path(directory) / f"{language}{suffix}"
+        if path.exists():
+            path.unlink()
+            removed += 1
+    return removed
+
+
 def predict_sequence(bundle: dict, sequence: np.ndarray) -> Prediction:
     vector = sequence_to_model_vector(sequence).reshape(1, -1)
     probabilities = bundle["pipeline"].predict_proba(vector)[0]

@@ -46,6 +46,10 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(
                 loaded.settings.url, "https://example.com/signbridge-hook"
             )
+            loaded.clear_webhook()
+            cleared = AgentSettingsStore(path)
+            self.assertFalse(cleared.settings.enabled)
+            self.assertEqual(cleared.settings.url, "")
 
     def test_connector_sends_only_a_confirmed_task_summary(self) -> None:
         requests = []

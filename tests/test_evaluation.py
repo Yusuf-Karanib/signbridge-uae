@@ -60,7 +60,13 @@ class EvaluationTests(unittest.TestCase):
             )
             self.assertEqual(summary["average_processing_ms"], 14.0)
             self.assertEqual(store.people("asl"), {"tester-01"})
-            self.assertTrue(store.write_report("asl", ("hello", "help"), "model-a").exists())
+            report_path = store.write_report(
+                "asl", ("hello", "help"), "model-a"
+            )
+            self.assertTrue(report_path.exists())
+            self.assertEqual(store.delete_person("tester 01"), 4)
+            self.assertEqual(store.people("asl"), set())
+            self.assertFalse(report_path.exists())
 
 
 if __name__ == "__main__":

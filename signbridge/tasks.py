@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from statistics import median
 
 from signbridge.config import AGENT_TASKS_PATH
 
@@ -26,6 +28,13 @@ class DeliveryStatus(str, Enum):
     FAILED = "failed"
 
 
+class TaskOutcome(str, Enum):
+    UNREVIEWED = "unreviewed"
+    SUCCESS = "success"
+    WRONG_ACTION = "wrong_action"
+    CANCELLED = "cancelled"
+
+
 @dataclass(frozen=True)
 class ReceptionTask:
     id: str
@@ -40,6 +49,10 @@ class ReceptionTask:
     staff_reply: str = ""
     delivery_status: DeliveryStatus = DeliveryStatus.NOT_CONFIGURED
     delivery_message: str = ""
+    input_method: str = "unknown"
+    correction_used: bool = False
+    confidence: float | None = None
+    outcome: TaskOutcome = TaskOutcome.UNREVIEWED
 
 
 class TaskStore:
@@ -62,6 +75,9 @@ class TaskStore:
         title: str,
         message: str,
         language: str,
+        input_method: str = "unknown",
+        correction_used: bool = False,
+        confidence: float | None = None,
     ) -> ReceptionTask:
         self._raise_if_unreadable()
         now = datetime.now(timezone.utc).isoformat()
@@ -74,6 +90,9 @@ class TaskStore:
             status=TaskStatus.PENDING,
             created_at=now,
             updated_at=now,
+            input_method=str(input_method).strip() or "unknown",
+            correction_used=bool(correction_used),
+            confidence=(float(confidence) if confidence is not None else None),
         )
         self._tasks[task.id] = task
         self._save()
@@ -139,9 +158,41 @@ class TaskStore:
         self._save()
         return updated
 
+    def mark_outcome(
+        self, task_id: str, outcome: TaskOutcome
+    ) -> ReceptionTask:
+        if outcome == TaskOutcome.UNREVIEWED:
+            raise ValueError("Choose a completed outcome")
+        task = self._required(task_id)
+        now = datetime.now(timezone.utc).isoformat()
+        updated = ReceptionTask(
+            **{
+                **asdict(task),
+                "status": TaskStatus.COMPLETED,
+                "outcome": outcome,
+                "updated_at": now,
+                "completed_at": task.completed_at or now,
+            }
+        )
+        self._tasks[task.id] = updated
+        self._save()
+        return updated
+
+    def clear_all(self) -> int:
+        self._raise_if_unreadable()
+        count = len(self._tasks)
+        self._tasks.clear()
+        self._save()
+        return count
+
     def summary(self) -> dict[str, float | int | None]:
         tasks = list(self._tasks.values())
         completed = [task for task in tasks if task.status == TaskStatus.COMPLETED]
+        reviewed = [task for task in tasks if task.outcome != TaskOutcome.UNREVIEWED]
+        successful = [task for task in tasks if task.outcome == TaskOutcome.SUCCESS]
+        wrong = [task for task in tasks if task.outcome == TaskOutcome.WRONG_ACTION]
+        cancelled = [task for task in tasks if task.outcome == TaskOutcome.CANCELLED]
+        judged_actions = successful + wrong
         completion_seconds: list[float] = []
         for task in completed:
             if not task.completed_at:
@@ -157,6 +208,11 @@ class TaskStore:
             "pending": sum(task.status == TaskStatus.PENDING for task in tasks),
             "accepted": sum(task.status == TaskStatus.ACCEPTED for task in tasks),
             "completed": len(completed),
+            "reviewed": len(reviewed),
+            "successful": len(successful),
+            "wrong_action": len(wrong),
+            "cancelled": len(cancelled),
+            "corrections": sum(task.correction_used for task in tasks),
             "sent": sum(
                 task.delivery_status == DeliveryStatus.SENT for task in tasks
             ),
@@ -168,7 +224,47 @@ class TaskStore:
                 if completion_seconds
                 else None
             ),
+            "median_completion_seconds": (
+                median(completion_seconds) if completion_seconds else None
+            ),
+            "task_completion_rate": (
+                len(successful) / len(tasks) if tasks else None
+            ),
+            "false_action_rate": (
+                len(wrong) / len(judged_actions) if judged_actions else None
+            ),
+            "correction_rate": (
+                sum(task.correction_used for task in tasks) / len(tasks)
+                if tasks
+                else None
+            ),
         }
+
+    def write_evidence_report(self, path: Path) -> Path:
+        self._raise_if_unreadable()
+        destination = Path(path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        tasks = list(self._tasks.values())
+        payload = {
+            "version": 1,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "privacy_note": (
+                "This aggregate report excludes staff replies, webhook URLs, "
+                "camera data and participant identifiers."
+            ),
+            "summary": self.summary(),
+            "tasks_by_action": dict(Counter(task.action_id for task in tasks)),
+            "tasks_by_language": dict(Counter(task.language for task in tasks)),
+            "tasks_by_input_method": dict(
+                Counter(task.input_method for task in tasks)
+            ),
+        }
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        temporary.replace(destination)
+        return destination
 
     def _required(self, task_id: str) -> ReceptionTask:
         self._raise_if_unreadable()
@@ -215,6 +311,16 @@ class TaskStore:
                         item.get("delivery_status", DeliveryStatus.NOT_CONFIGURED)
                     ),
                     delivery_message=str(item.get("delivery_message", "")),
+                    input_method=str(item.get("input_method", "unknown")),
+                    correction_used=bool(item.get("correction_used", False)),
+                    confidence=(
+                        float(item["confidence"])
+                        if item.get("confidence") is not None
+                        else None
+                    ),
+                    outcome=TaskOutcome(
+                        item.get("outcome", TaskOutcome.UNREVIEWED)
+                    ),
                 )
                 for item in tasks
             }

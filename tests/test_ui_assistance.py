@@ -13,8 +13,7 @@ from signbridge.assistance import AssistanceStage
 from signbridge.classifier import Prediction
 from signbridge.config import UNKNOWN_LABEL
 from signbridge.integrations import AgentSettingsStore
-from signbridge.tasks import TaskStore
-from signbridge.tasks import TaskStatus
+from signbridge.tasks import TaskOutcome, TaskStatus, TaskStore
 from signbridge.ui import MainWindow
 
 
@@ -64,11 +63,15 @@ class AssistanceUiTests(unittest.TestCase):
                 window.assistance_session.turns[-1].speaker, "Agent"
             )
             self.assertIn(action.task_id, window.reception_agent.pending_tasks)
+            task = window.reception_agent.task_store.get(action.task_id)
+            self.assertEqual(task.input_method, "camera")
+            self.assertFalse(task.correction_used)
+            self.assertEqual(task.confidence, 0.91)
 
             window._complete_assistance_session()
             self.assertEqual(window.assistance_action_results, [])
             self.assertEqual(window.assistance_session.turns, [])
-            self.assertEqual(window.reception_agent.pending_tasks, {})
+            self.assertIn(action.task_id, window.reception_agent.pending_tasks)
 
         window.close()
 
@@ -178,7 +181,25 @@ class AssistanceUiTests(unittest.TestCase):
             window.reception_agent.task_store.get(task_id).status,
             TaskStatus.COMPLETED,
         )
+        self.assertEqual(
+            window.reception_agent.task_store.get(task_id).outcome,
+            TaskOutcome.SUCCESS,
+        )
         self.assertEqual(window.staff_task_table.rowCount(), 0)
+        window.close()
+
+    def test_competition_demo_hides_setup_and_experiment_tabs(self) -> None:
+        window = self._window()
+        window._toggle_demo_mode()
+
+        self.assertTrue(window.demo_mode_enabled)
+        self.assertTrue(window.tabs.isTabVisible(window.assistance_tab_index))
+        self.assertTrue(window.tabs.isTabVisible(window.staff_tab_index))
+        self.assertFalse(window.tabs.isTabVisible(window.training_tab_index))
+        self.assertFalse(window.tabs.isTabVisible(window.control_tab_index))
+
+        window._toggle_demo_mode()
+        self.assertTrue(window.tabs.isTabVisible(window.training_tab_index))
         window.close()
 
     def test_no_hand_sample_is_allowed_only_for_other_training(self) -> None:

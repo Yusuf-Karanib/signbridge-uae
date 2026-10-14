@@ -122,3 +122,33 @@ class DatasetStore:
         shutil.move(str(source), str(destination))
         return destination
 
+    def delete_person(self, person_id: str, language: str | None = None) -> int:
+        """Permanently delete one person's landmark samples, including trash."""
+        safe_person = self.safe_component(person_id).casefold()
+        safe_language = self.safe_component(language) if language else None
+        removed = 0
+        for base in (self.samples_dir, self.trash_dir):
+            root = base / safe_language if safe_language else base
+            if not root.exists():
+                continue
+            for path in list(root.rglob("*.npz")):
+                try:
+                    with np.load(path, allow_pickle=False) as payload:
+                        metadata = json.loads(str(payload["metadata"].item()))
+                    if str(metadata.get("person_id", "")).casefold() != safe_person:
+                        continue
+                    path.unlink()
+                    removed += 1
+                except (OSError, KeyError, ValueError, json.JSONDecodeError):
+                    continue
+            for directory in sorted(
+                (item for item in root.rglob("*") if item.is_dir()),
+                key=lambda item: len(item.parts),
+                reverse=True,
+            ):
+                try:
+                    directory.rmdir()
+                except OSError:
+                    pass
+        return removed
+

@@ -9,6 +9,9 @@
 - Separate confirmation of the detected sign and complete request before any agent action or guided speech.
 - Local reception task IDs for directions, appointments, interpreter requests, general help and water help.
 - A persistent Staff desk where tasks can be accepted, replied to and completed after an app restart.
+- Honest task outcomes: successful, wrong action or cancelled.
+- Aggregate task-completion, false-action, correction and response-time evidence with privacy-safe JSON export.
+- A one-click **Competition demo** view that shows only the visitor agent and Staff desk.
 - An optional HTTPS Slack/Teams-compatible staff notification webhook, disabled until explicitly configured.
 - Basic task totals, delivery failures and average completion-time measurement.
 - Short-session memory, including showing an earlier staff reply after the `Again` or `Repeat` request.
@@ -22,11 +25,13 @@
 - `OTHER / NO SIGN` training examples to reduce false detections.
 - Local landmark storage; raw camera video is not saved.
 - Short training-video import for remote participants; the selected raw video is not copied into SignBridge.
+- Permanent Person ID deletion across landmark samples and final-test records; affected trained models are removed for retraining.
+- Controls to forget the webhook secret and delete all local reception history.
 - Unseen-person accuracy report when at least three people have recorded every class.
 - A separate **Final test** area that blocks training people and keeps results out of training.
 - Reports for accuracy, false acceptance, unknown rejection, test conditions and model processing time.
 
-A real webcam capture previously produced the expected 32-step landmark sequence. The new hand model was also tested on the supplied gesture-control video and found hands in 105 of 120 sampled frames. The preview runs separately from sign capture so the larger body model does not slow normal viewing. All 47 automated tests pass, including confirmation safety, persistent task lifecycle, webhook safety, imported-video extraction, negative examples, conversation memory, computer control and the resizable layout. A startup/shutdown check passed on 13 October 2026. Recheck the live camera after closing every browser, meeting or Camera app that may use it.
+A real webcam capture previously produced the expected 32-step landmark sequence. The hand model was also tested on the supplied gesture-control video and found hands in 105 of 120 sampled frames. The preview runs separately from sign capture so the larger body model does not slow normal viewing. All 48 automated tests pass, including confirmation safety, task outcomes, evidence privacy, participant deletion, webhook safety, imported-video extraction, negative examples, conversation memory, computer control and the focused/resizable layout. A startup/shutdown check passed on 14 October 2026. Recheck the live camera after closing every browser, meeting or Camera app that may use it.
 
 ## Still required before an accuracy or accessibility claim
 

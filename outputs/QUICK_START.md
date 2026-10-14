@@ -12,10 +12,11 @@ The full current control instructions are in `docs/CONTROL_GUIDE.md`.
 8. Train each language model.
 9. Open **SignBridge agent**, choose the language and press **Record a request sign**.
 10. Confirm the sign, choose the exact request and confirm the full sentence before speech.
-11. Open **Staff desk**, accept the new task, save a reply and complete it.
+11. Open **Staff desk**, accept the new task, save a reply and record **Complete successfully**, **Mark wrong action** or **Cancel selected** honestly.
 12. A task is local unless an administrator configured and enabled the webhook. Even then, delivery does not prove a staff member read it.
-13. Press **Continue with another sign** to keep the conversation memory, or **Complete task and clear session** when finished.
+13. Press **Continue with another sign** to keep the conversation memory, or **End and clear signer session** when finished. Ending the signer session does not silently mark the staff task successful.
 14. Use **Final test** with at least one completely new person; two or three is better.
+15. Press **Competition demo** for the focused visitor-and-staff presentation. Export the aggregate evidence report from **Staff desk** after real trials.
 
 For computer control, open **Computer control**, choose a mode, turn it on and hold an open palm for 1.5 seconds. Leave that tab or press **Stop** to disable it. These are generic shortcuts, not ASL or Emirati signs.
 

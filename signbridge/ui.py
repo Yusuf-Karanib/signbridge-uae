@@ -41,12 +41,18 @@ from PySide6.QtWidgets import (
 from signbridge.agent import AgentActionResult, AgentActionStatus, ReceptionAgent
 from signbridge.assistance import AssistanceSession, AssistanceStage
 from signbridge.camera import CameraWorker
-from signbridge.classifier import load_model, predict_sequence, train_language_model
+from signbridge.classifier import (
+    delete_language_model,
+    load_model,
+    predict_sequence,
+    train_language_model,
+)
 from signbridge.computer_control import ComputerController
 from signbridge.config import (
     MIN_HAND_PRESENCE_RATIO,
     MIN_SAMPLES_PER_CLASS,
     PERSONAL_DEMO_SAMPLES_PER_CLASS,
+    PROJECT_ROOT,
     RECOMMENDED_SAMPLES_PER_CLASS,
     UNKNOWN_LABEL,
 )
@@ -58,7 +64,12 @@ from signbridge.integrations import (
     StaffWebhookConnector,
 )
 from signbridge.speech import SpeechService
-from signbridge.tasks import DeliveryStatus, ReceptionTask, TaskStatus
+from signbridge.tasks import (
+    DeliveryStatus,
+    ReceptionTask,
+    TaskOutcome,
+    TaskStatus,
+)
 from signbridge.validation import ValidationStore
 from signbridge.video_import import extract_training_video
 from signbridge.vocabulary import LanguagePack, Vocabulary
@@ -348,6 +359,9 @@ class MainWindow(QMainWindow):
         self.assistance_feedback = "Ready for a new request"
         self.assistance_result_text = "—"
         self.assistance_result_confidence: float | None = None
+        self.assistance_input_method = "unknown"
+        self.assistance_correction_used = False
+        self.demo_mode_enabled = False
         self.training_worker: TrainingWorker | None = None
         self.video_import_worker: VideoImportWorker | None = None
         self.video_import_context: dict | None = None
@@ -399,6 +413,11 @@ class MainWindow(QMainWindow):
         self.system_status = QLabel("Starting camera…")
         self.system_status.setObjectName("cameraState")
         header.addWidget(self.system_status)
+        self.demo_mode_button = QPushButton("Competition demo")
+        self.demo_mode_button.setToolTip(
+            "Show only the visitor agent and Staff desk"
+        )
+        header.addWidget(self.demo_mode_button)
         self.fullscreen_button = QPushButton("Full screen")
         self.fullscreen_button.setToolTip("Full screen (F11)")
         header.addWidget(self.fullscreen_button)
@@ -407,12 +426,12 @@ class MainWindow(QMainWindow):
         header.addWidget(self.reset_layout_button)
         root.addLayout(header)
 
-        scope = QLabel(
+        self.scope_label = QLabel(
             "Prototype scope: 4 ASL signs + 4 Emirati signs. The controlled agent remembers a short session and runs local reception actions — not full sign-language translation."
         )
-        scope.setWordWrap(True)
-        scope.setObjectName("warning")
-        root.addWidget(scope)
+        self.scope_label.setWordWrap(True)
+        self.scope_label.setObjectName("warning")
+        root.addWidget(self.scope_label)
 
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.main_splitter.setChildrenCollapsible(False)
@@ -823,7 +842,7 @@ class MainWindow(QMainWindow):
         session_buttons.addWidget(self.assist_speak_again_button, 1)
         session_buttons.addWidget(self.assist_continue_button, 1)
         conversation_layout.addLayout(session_buttons)
-        self.assist_complete_button = QPushButton("Complete task and clear session")
+        self.assist_complete_button = QPushButton("End and clear signer session")
         self.assist_complete_button.setObjectName("danger")
         conversation_layout.addWidget(self.assist_complete_button)
         self.assist_voice_status = QLabel("Voice ready")
@@ -1013,6 +1032,20 @@ class MainWindow(QMainWindow):
         self.train_model_button.setMinimumHeight(46)
         model_layout.addWidget(self.train_model_button)
         layout.addWidget(model_card)
+
+        privacy_card, privacy_layout = self._section_card(
+            "Privacy: delete a participant",
+            "Permanently removes this Person ID from training and final-test records. Any trained language model containing that person's examples is also removed and must be retrained.",
+        )
+        self.privacy_person_id = QLineEdit()
+        self.privacy_person_id.setPlaceholderText("Person ID to permanently delete")
+        self.privacy_delete_person_button = QPushButton(
+            "Delete this participant's local data"
+        )
+        self.privacy_delete_person_button.setObjectName("danger")
+        privacy_layout.addWidget(self.privacy_person_id)
+        privacy_layout.addWidget(self.privacy_delete_person_button)
+        layout.addWidget(privacy_card)
         layout.addStretch()
         return tab
 
@@ -1068,7 +1101,10 @@ class MainWindow(QMainWindow):
         self.staff_show_completed = QCheckBox("Show completed")
         self.staff_refresh_button = QPushButton("Refresh")
         self.staff_accept_button = QPushButton("Accept selected")
-        self.staff_complete_button = QPushButton("Complete selected")
+        self.staff_complete_button = QPushButton("Complete successfully")
+        self.staff_wrong_action_button = QPushButton("Mark wrong action")
+        self.staff_wrong_action_button.setObjectName("danger")
+        self.staff_cancel_button = QPushButton("Cancel selected")
         queue_filter_row.addWidget(self.staff_show_completed)
         queue_filter_row.addStretch()
         queue_filter_row.addWidget(self.staff_refresh_button)
@@ -1078,7 +1114,26 @@ class MainWindow(QMainWindow):
         queue_action_row.addWidget(self.staff_accept_button, 1)
         queue_action_row.addWidget(self.staff_complete_button, 1)
         queue_layout.addLayout(queue_action_row)
+        queue_outcome_row = QHBoxLayout()
+        queue_outcome_row.setSpacing(8)
+        queue_outcome_row.addWidget(self.staff_wrong_action_button, 1)
+        queue_outcome_row.addWidget(self.staff_cancel_button, 1)
+        queue_layout.addLayout(queue_outcome_row)
         layout.addWidget(queue_card)
+
+        evidence_card, evidence_layout = self._section_card(
+            "Competition evidence",
+            "Outcome labels are entered by staff. The report contains aggregate numbers only—no replies, video or participant IDs.",
+        )
+        self.staff_evidence_summary = QLabel("No reviewed tasks yet")
+        self.staff_evidence_summary.setWordWrap(True)
+        self.staff_evidence_summary.setObjectName("modelStatus")
+        evidence_layout.addWidget(self.staff_evidence_summary)
+        self.staff_export_evidence_button = QPushButton(
+            "Export privacy-safe evidence report"
+        )
+        evidence_layout.addWidget(self.staff_export_evidence_button)
+        layout.addWidget(evidence_card)
 
         reply_card, reply_layout = self._section_card(
             "Reply to the selected task",
@@ -1136,6 +1191,9 @@ class MainWindow(QMainWindow):
         connection_buttons.addWidget(self.staff_save_webhook_button)
         connection_buttons.addWidget(self.staff_test_webhook_button)
         connection_layout.addLayout(connection_buttons)
+        self.staff_forget_webhook_button = QPushButton("Forget saved webhook URL")
+        self.staff_forget_webhook_button.setObjectName("danger")
+        connection_layout.addWidget(self.staff_forget_webhook_button)
         self.staff_webhook_status = QLabel(
             "Connection disabled" if not self.agent_settings_store.settings.enabled else "Connection enabled"
         )
@@ -1143,6 +1201,17 @@ class MainWindow(QMainWindow):
         self.staff_webhook_status.setObjectName("muted")
         connection_layout.addWidget(self.staff_webhook_status)
         layout.addWidget(connection_card)
+
+        history_card, history_layout = self._section_card(
+            "Privacy: clear reception history",
+            "Permanently deletes every local task, status and staff reply. It does not delete training samples.",
+        )
+        self.staff_clear_history_button = QPushButton(
+            "Delete all local task history"
+        )
+        self.staff_clear_history_button.setObjectName("danger")
+        history_layout.addWidget(self.staff_clear_history_button)
+        layout.addWidget(history_card)
 
         layout.addStretch()
         return tab
@@ -1254,6 +1323,13 @@ class MainWindow(QMainWindow):
         self.staff_refresh_button.clicked.connect(self._refresh_staff_tab)
         self.staff_accept_button.clicked.connect(self._accept_staff_task)
         self.staff_complete_button.clicked.connect(self._complete_staff_task)
+        self.staff_wrong_action_button.clicked.connect(
+            self._mark_staff_task_wrong
+        )
+        self.staff_cancel_button.clicked.connect(self._cancel_staff_task)
+        self.staff_export_evidence_button.clicked.connect(
+            self._export_staff_evidence
+        )
         self.staff_quick_reply.currentIndexChanged.connect(
             self._apply_staff_quick_reply
         )
@@ -1263,6 +1339,12 @@ class MainWindow(QMainWindow):
             self._save_webhook_settings
         )
         self.staff_test_webhook_button.clicked.connect(self._test_webhook)
+        self.staff_forget_webhook_button.clicked.connect(
+            self._forget_webhook
+        )
+        self.staff_clear_history_button.clicked.connect(
+            self._clear_staff_history
+        )
         self.record_training_button.clicked.connect(self._capture_training_sample)
         self.import_training_video_button.clicked.connect(
             self._import_training_video
@@ -1271,10 +1353,14 @@ class MainWindow(QMainWindow):
         self.delete_last_button.clicked.connect(self._remove_last_sample)
         self.train_model_button.clicked.connect(self._train_model)
         self.mark_reviewed_button.clicked.connect(self._mark_sign_reviewed)
+        self.privacy_delete_person_button.clicked.connect(
+            self._delete_participant_data
+        )
         self.undo_button.clicked.connect(self._undo_history)
         self.clear_button.clicked.connect(self._clear_history)
         self.replay_button.clicked.connect(self._speak_current_result)
         self.fullscreen_button.clicked.connect(self._toggle_full_screen)
+        self.demo_mode_button.clicked.connect(self._toggle_demo_mode)
         self.reset_layout_button.clicked.connect(self._reset_layout)
         self.restart_camera_button.clicked.connect(self._restart_camera)
         self.control_enable_button.clicked.connect(self._toggle_computer_control)
@@ -1286,6 +1372,35 @@ class MainWindow(QMainWindow):
             self.showNormal()
         else:
             self.showFullScreen()
+        self._update_responsive_labels()
+
+    def _toggle_demo_mode(self) -> None:
+        self.demo_mode_enabled = not self.demo_mode_enabled
+        if self.control_enabled:
+            self._disable_computer_control("Competition demo mode stopped it.")
+        self.tabs.setCurrentIndex(self.assistance_tab_index)
+        setup_indexes = (
+            self.recognize_tab_index,
+            self.training_tab_index,
+            self.evaluation_tab_index,
+            self.control_tab_index,
+        )
+        for index in setup_indexes:
+            self.tabs.setTabVisible(index, not self.demo_mode_enabled)
+        self.tabs.setTabVisible(self.assistance_tab_index, True)
+        self.tabs.setTabVisible(self.staff_tab_index, True)
+        if self.demo_mode_enabled:
+            self.scope_label.setText(
+                "Competition demo: a confirmed supported sign becomes a bounded service-desk task, staff completes it, and the session stops. This is not full sign-language translation."
+            )
+            self.demo_mode_button.setObjectName("primary")
+        else:
+            self.scope_label.setText(
+                "Prototype scope: 4 ASL signs + 4 Emirati signs. The controlled agent remembers a short session and runs local reception actions — not full sign-language translation."
+            )
+            self.demo_mode_button.setObjectName("")
+        self.demo_mode_button.style().unpolish(self.demo_mode_button)
+        self.demo_mode_button.style().polish(self.demo_mode_button)
         self._update_responsive_labels()
 
     def _reset_layout(self) -> None:
@@ -1325,12 +1440,21 @@ class MainWindow(QMainWindow):
         for index, name in enumerate(tab_names):
             self.tabs.setTabText(index, name)
         self.subtitle_label.setVisible(not compact)
+        if self.demo_mode_enabled:
+            self.demo_mode_button.setText(
+                "Setup" if compact else "Show setup tools"
+            )
+        else:
+            self.demo_mode_button.setText(
+                "Demo" if compact else "Competition demo"
+            )
         self.reset_layout_button.setText("Reset" if compact else "Reset layout")
         if self.isFullScreen():
             self.fullscreen_button.setText("Exit full")
         else:
             self.fullscreen_button.setText("Full" if compact else "Full screen")
         self.system_status.setMaximumWidth(165 if compact else 240)
+        self.demo_mode_button.setMaximumWidth(105 if compact else 155)
         self.fullscreen_button.setMaximumWidth(105 if compact else 140)
         self.reset_layout_button.setMaximumWidth(105 if compact else 140)
 
@@ -1401,12 +1525,17 @@ class MainWindow(QMainWindow):
         language = self._combo_language(self.assist_language)
         self._clear_assistance_actions()
         self.assistance_session.reset(language)
+        self._reset_assistance_evidence()
         self.assistance_feedback = "Language changed. Ready for a new request."
         self.assistance_result_text = "—"
         self.assistance_result_confidence = None
         self.assist_staff_reply.clear()
         self._populate_assistance_signs()
         self._refresh_assistance_tab()
+
+    def _reset_assistance_evidence(self) -> None:
+        self.assistance_input_method = "unknown"
+        self.assistance_correction_used = False
 
     def _populate_assistance_signs(self) -> None:
         language = self._combo_language(self.assist_language)
@@ -1584,6 +1713,12 @@ class MainWindow(QMainWindow):
             TaskStatus.ACCEPTED: "Accepted",
             TaskStatus.COMPLETED: "Completed",
         }
+        outcome_names = {
+            TaskOutcome.UNREVIEWED: None,
+            TaskOutcome.SUCCESS: "Successful",
+            TaskOutcome.WRONG_ACTION: "Wrong action",
+            TaskOutcome.CANCELLED: "Cancelled",
+        }
         delivery_names = {
             DeliveryStatus.NOT_CONFIGURED: "Local only",
             DeliveryStatus.SENDING: "Sending",
@@ -1595,9 +1730,8 @@ class MainWindow(QMainWindow):
             task_item.setData(Qt.ItemDataRole.UserRole, task.id)
             self.staff_task_table.setItem(row, 0, task_item)
             self.staff_task_table.setItem(row, 1, QTableWidgetItem(task.title))
-            self.staff_task_table.setItem(
-                row, 2, QTableWidgetItem(status_names[task.status])
-            )
+            status_text = outcome_names[task.outcome] or status_names[task.status]
+            self.staff_task_table.setItem(row, 2, QTableWidgetItem(status_text))
             self.staff_task_table.setItem(
                 row, 3, QTableWidgetItem(delivery_names[task.delivery_status])
             )
@@ -1620,6 +1754,16 @@ class MainWindow(QMainWindow):
             f" • delivery failed {summary['failed_delivery']}"
             f"{average_text}"
         )
+        def percent(value: Any) -> str:
+            return "pending" if value is None else f"{float(value) * 100:.1f}%"
+
+        self.staff_evidence_summary.setText(
+            f"Reviewed {summary['reviewed']}/{summary['total']} • "
+            f"successful {summary['successful']} • wrong actions {summary['wrong_action']} • "
+            f"task completion {percent(summary['task_completion_rate'])} • "
+            f"false-action rate {percent(summary['false_action_rate'])} • "
+            f"correction rate {percent(summary['correction_rate'])}"
+        )
         load_error = self.reception_agent.task_store.load_error
         if load_error:
             self.staff_action_status.setText(load_error)
@@ -1641,6 +1785,8 @@ class MainWindow(QMainWindow):
         open_task = task is not None and task.status != TaskStatus.COMPLETED
         self.staff_accept_button.setEnabled(pending)
         self.staff_complete_button.setEnabled(open_task)
+        self.staff_wrong_action_button.setEnabled(open_task)
+        self.staff_cancel_button.setEnabled(open_task)
         self.staff_reply_text.setEnabled(open_task)
         self.staff_reply_button.setEnabled(open_task)
         self.staff_quick_reply.setEnabled(open_task)
@@ -1669,13 +1815,67 @@ class MainWindow(QMainWindow):
         if task is None:
             return
         try:
-            self.reception_agent.task_store.update_status(
-                task.id, TaskStatus.COMPLETED
+            self.reception_agent.task_store.mark_outcome(
+                task.id, TaskOutcome.SUCCESS
             )
-            self.staff_action_status.setText(f"{task.id} completed")
+            self.staff_action_status.setText(f"{task.id} completed successfully")
         except (RuntimeError, ValueError) as exc:
             self.staff_action_status.setText(str(exc))
         self._refresh_staff_tab()
+
+    def _mark_staff_task_wrong(self) -> None:
+        task = self._selected_staff_task()
+        if task is None:
+            return
+        answer = QMessageBox.question(
+            self,
+            "Mark wrong action",
+            "Confirm that SignBridge created the wrong task. This will count as a false action in the evidence report.",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.reception_agent.task_store.mark_outcome(
+                task.id, TaskOutcome.WRONG_ACTION
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.staff_action_status.setText(str(exc))
+        self._refresh_staff_tab()
+
+    def _cancel_staff_task(self) -> None:
+        task = self._selected_staff_task()
+        if task is None:
+            return
+        try:
+            self.reception_agent.task_store.mark_outcome(
+                task.id, TaskOutcome.CANCELLED
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.staff_action_status.setText(str(exc))
+        self._refresh_staff_tab()
+
+    def _export_staff_evidence(self) -> None:
+        default_path = PROJECT_ROOT / "outputs" / "signbridge-evidence-report.json"
+        filename, _filter = QFileDialog.getSaveFileName(
+            self,
+            "Export competition evidence",
+            str(default_path),
+            "JSON report (*.json)",
+        )
+        if not filename:
+            return
+        try:
+            path = self.reception_agent.task_store.write_evidence_report(
+                Path(filename)
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            QMessageBox.warning(self, "Export failed", str(exc))
+            return
+        QMessageBox.information(
+            self,
+            "Evidence exported",
+            f"Privacy-safe aggregate report saved to:\n{path}",
+        )
 
     def _apply_staff_quick_reply(self, *_args: Any) -> None:
         task = self._selected_staff_task()
@@ -1744,6 +1944,40 @@ class MainWindow(QMainWindow):
             return
         self.staff_webhook_status.setText("Sending safe connection test…")
         self._start_webhook_worker(url=url, task=None)
+
+    def _forget_webhook(self) -> None:
+        try:
+            self.agent_settings_store.clear_webhook()
+        except (RuntimeError, ValueError) as exc:
+            self.staff_webhook_status.setText(str(exc))
+            return
+        self.staff_webhook_enabled.setChecked(False)
+        self.staff_webhook_url.clear()
+        self.staff_webhook_status.setText("Saved webhook URL removed")
+
+    def _clear_staff_history(self) -> None:
+        answer = QMessageBox.question(
+            self,
+            "Delete all task history",
+            "This permanently deletes every local task, status and staff reply and clears the current signer session. Continue?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            removed = self.reception_agent.task_store.clear_all()
+        except RuntimeError as exc:
+            self.staff_action_status.setText(str(exc))
+            return
+        language = self._combo_language(self.assist_language)
+        self.assistance_session.reset(language)
+        self.assistance_action_results.clear()
+        self._reset_assistance_evidence()
+        self.assistance_feedback = "Session and local task history cleared."
+        self.assistance_result_text = "—"
+        self.assistance_result_confidence = None
+        self._render_assistance()
+        self._refresh_staff_tab()
+        self.staff_action_status.setText(f"Deleted {removed} local tasks")
 
     def _notify_staff_task(self, task_id: str) -> None:
         settings = self.agent_settings_store.settings
@@ -2540,6 +2774,7 @@ class MainWindow(QMainWindow):
             self.capture_state_label.setText("Try again with hands visible")
             self.capture_progress.setValue(0)
             if purpose == "assist":
+                self.assistance_correction_used = True
                 self.assistance_feedback = (
                     "No request was accepted. Keep both hands inside the frame and try again."
                 )
@@ -2635,6 +2870,7 @@ class MainWindow(QMainWindow):
     def _show_assistance_prediction(self, language: str, prediction: Any) -> None:
         pack = self.vocabulary.pack(language)
         self.assistance_result_confidence = float(prediction.confidence)
+        self.assistance_input_method = "camera"
         if prediction.accepted:
             sign = pack.sign_for_id(prediction.label)
             self.assistance_session.propose_sign(
@@ -2648,6 +2884,7 @@ class MainWindow(QMainWindow):
                 "The camera made a suggestion. Confirm it before SignBridge continues."
             )
         else:
+            self.assistance_correction_used = True
             self.assistance_result_text = "Not sure"
             self.assistance_feedback = (
                 "Nothing was added, spoken or acted on. Conversation memory was kept. Record again or use the correction fallback."
@@ -2668,6 +2905,8 @@ class MainWindow(QMainWindow):
         label = str(self.assist_manual_sign.currentData())
         pack = self.vocabulary.pack(language)
         sign = pack.sign_for_id(label)
+        self.assistance_input_method = "manual"
+        self.assistance_correction_used = True
         self.assistance_session.propose_sign(
             language=language,
             label=label,
@@ -2696,6 +2935,7 @@ class MainWindow(QMainWindow):
             self.assistance_session.reject_sign()
         except ValueError:
             return
+        self.assistance_correction_used = True
         self.assistance_feedback = "The suggestion was rejected. Record again or choose a sign manually."
         self.assistance_result_text = "—"
         self.assistance_result_confidence = None
@@ -2738,6 +2978,9 @@ class MainWindow(QMainWindow):
                 selected_option,
                 language=self.assistance_session.language,
                 conversation=self.assistance_session.turns,
+                input_method=self.assistance_input_method,
+                correction_used=self.assistance_correction_used,
+                confidence=self.assistance_result_confidence,
             )
             self.assistance_session.add_agent_message(
                 action_result.message, pack.locale
@@ -2801,6 +3044,7 @@ class MainWindow(QMainWindow):
         self.assist_staff_reply.clear()
         self.assistance_result_text = "—"
         self.assistance_result_confidence = None
+        self._reset_assistance_evidence()
         self.assistance_feedback = (
             "Conversation memory kept. Record the next supported sign."
         )
@@ -2825,12 +3069,13 @@ class MainWindow(QMainWindow):
             self.assistance_feedback = str(exc)
             self._render_assistance()
             return
-        self._clear_assistance_actions(complete_tasks=True)
+        self._clear_assistance_actions()
         self.assist_staff_reply.clear()
         self.assistance_result_text = "—"
         self.assistance_result_confidence = None
+        self._reset_assistance_evidence()
         self.assistance_feedback = (
-            "Session completed and cleared. No conversation was saved."
+            "Signer session cleared. Staff tasks remain in the Staff desk until staff records an outcome."
         )
         self._render_assistance()
 
@@ -2954,6 +3199,44 @@ class MainWindow(QMainWindow):
         if destination is None:
             QMessageBox.information(self, "Nothing to remove", "No sample exists for this sign.")
         self._refresh_training_status()
+
+    def _delete_participant_data(self) -> None:
+        raw_person = self.privacy_person_id.text().strip()
+        try:
+            person_id = DatasetStore.safe_component(raw_person)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Person ID needed", str(exc))
+            return
+        affected_models: set[str] = set()
+        for language, bundle in self.model_cache.items():
+            if person_id.casefold() in {
+                str(item).casefold() for item in (bundle or {}).get("people", [])
+            }:
+                affected_models.add(language)
+            if person_id.casefold() in {
+                item.casefold() for item in self.dataset.people(language)
+            }:
+                affected_models.add(language)
+        answer = QMessageBox.question(
+            self,
+            "Permanently delete participant data",
+            f"Delete every training sample and final-test record for Person ID '{person_id}'? Any trained model that used this person will also be removed. This cannot be undone.",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        sample_count = self.dataset.delete_person(person_id)
+        evaluation_count = self.evaluation.delete_person(person_id)
+        model_files = 0
+        for language in affected_models:
+            model_files += delete_language_model(language)
+            self.model_cache[language] = None
+        self.privacy_person_id.clear()
+        self._refresh_all()
+        QMessageBox.information(
+            self,
+            "Participant data deleted",
+            f"Deleted {sample_count} landmark samples and {evaluation_count} final-test records. Removed {model_files} trained-model files that could contain this person's influence.",
+        )
 
     def _mark_sign_reviewed(self) -> None:
         language = self._combo_language(self.train_language)

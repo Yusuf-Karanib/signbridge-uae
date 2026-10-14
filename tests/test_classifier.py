@@ -4,7 +4,12 @@ import unittest
 
 import numpy as np
 
-from signbridge.classifier import load_model, predict_sequence, train_language_model
+from signbridge.classifier import (
+    delete_language_model,
+    load_model,
+    predict_sequence,
+    train_language_model,
+)
 from signbridge.config import SEQUENCE_LENGTH, UNKNOWN_LABEL
 from signbridge.dataset import DatasetStore
 from signbridge.landmarks import FEATURE_DIM
@@ -69,6 +74,13 @@ class ClassifierTests(unittest.TestCase):
             self.assertIsNotNone(bundle["metrics"]["supported_sign_coverage"])
             self.assertEqual(prediction.label, "sign_0")
             self.assertGreater(prediction.confidence, 1.0 / len(labels))
+
+            privacy_models = root / "privacy-models"
+            (privacy_models / "asl.joblib").parent.mkdir(parents=True)
+            (privacy_models / "asl.joblib").write_bytes(b"model")
+            (privacy_models / "asl.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(delete_language_model("asl", privacy_models), 2)
+            self.assertFalse((privacy_models / "asl.joblib").exists())
 
 
 if __name__ == "__main__":

@@ -173,6 +173,9 @@ class ReceptionAgent:
         *,
         language: str,
         conversation: Iterable[ConversationTurn],
+        input_method: str = "unknown",
+        correction_used: bool = False,
+        confidence: float | None = None,
     ) -> AgentActionResult:
         if option.id not in ACTION_IDS:
             raise ValueError(f"No agent action is configured for {option.id}")
@@ -213,6 +216,9 @@ class ReceptionAgent:
                 title=title,
                 message=message,
                 language=language,
+                input_method=input_method,
+                correction_used=correction_used,
+                confidence=confidence,
             )
             result = AgentActionResult(
                 action_id=option.id,

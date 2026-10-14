@@ -1,6 +1,6 @@
 # Read this when you return
 
-The software foundation is built and tested. It has 4 ASL choices, 4 Emirati Sign Language choices, improved hand tracking, webcam or short-video training, text, speech, confidence rejection, a controlled reception agent, a persistent Staff desk, an optional staff webhook, a separate final-test report and an optional computer-control tab.
+The software foundation is built and tested. It has 4 ASL choices, 4 Emirati Sign Language choices, improved hand tracking, webcam or short-video training, text, speech, confidence rejection, a controlled reception agent, a persistent Staff desk, a focused competition-demo view, privacy-safe evidence export, deletion controls, an optional staff webhook, a separate final-test report and an optional computer-control tab.
 
 For the full beginner explanation, read `docs/FULL_BEGINNER_GUIDE.md`.
 
@@ -16,5 +16,6 @@ A personalized ASL model trained only on Yusuf exists. It is not proof that the 
 6. Test at least one completely new person in **Final test**; two or three is better.
 7. Test a complete **SignBridge agent** interaction through the **Staff desk**, including a second sign after a staff reply, and record every correction or false action.
 8. Remove any sign that misses the test targets.
+9. After at least 20 honestly labelled task trials, export the competition evidence report from **Staff desk**.
 
 Do not call it a full translator. Call it an **8-sign bilingual isolated-sign prototype with a controlled reception agent**. Tasks are local unless an administrator enables the optional webhook; the webhook still does not make bookings. The computer-control gestures are a separate generic-gesture experiment.

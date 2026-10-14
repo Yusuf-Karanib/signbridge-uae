@@ -114,6 +114,34 @@ class EvaluationStore:
     def people(self, language: str) -> set[str]:
         return {attempt.person_id for attempt in self.load_attempts(language)}
 
+    def delete_person(self, person_id: str, language: str | None = None) -> int:
+        """Permanently delete one person's final-test attempts."""
+        safe_person = DatasetStore.safe_component(person_id).casefold()
+        safe_language = DatasetStore.safe_component(language) if language else None
+        roots = [self.directory / safe_language] if safe_language else [
+            path for path in self.directory.iterdir() if path.is_dir()
+        ]
+        removed = 0
+        affected_languages: set[str] = set()
+        for root in roots:
+            if not root.exists():
+                continue
+            for path in list(root.glob("*.json")):
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    if str(payload.get("person_id", "")).casefold() != safe_person:
+                        continue
+                    affected_languages.add(root.name)
+                    path.unlink()
+                    removed += 1
+                except (OSError, ValueError, json.JSONDecodeError):
+                    continue
+        for affected_language in affected_languages:
+            report = self.directory / f"report_{affected_language}.json"
+            if report.exists():
+                report.unlink()
+        return removed
+
     def summary(
         self, language: str, labels: tuple[str, ...], model_created_at: str
     ) -> dict:

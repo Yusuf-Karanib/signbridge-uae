@@ -29,6 +29,17 @@ class DatasetTests(unittest.TestCase):
             self.assertTrue(trashed.exists())
             self.assertFalse(saved.exists())
 
+            active = store.save_sample(
+                "asl", "help", "person 01", sequence
+            )
+            other = store.save_sample(
+                "asl", "help", "person-02", sequence
+            )
+            self.assertEqual(store.delete_person("person 01"), 2)
+            self.assertFalse(trashed.exists())
+            self.assertFalse(active.exists())
+            self.assertTrue(other.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

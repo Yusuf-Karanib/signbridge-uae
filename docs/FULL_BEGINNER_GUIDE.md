@@ -6,7 +6,7 @@ For a short operating manual for the latest camera and computer controls, read `
 
 ## Read these three parts first
 
-1. **What exists now:** the application, improved hand tracking, live and short-video training, testing, text, speech, a controlled reception agent, a persistent Staff desk, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists. No Emirati model exists yet.
+1. **What exists now:** the application, improved hand tracking, live and short-video training, testing, text, speech, a controlled reception agent, a persistent Staff desk, a focused competition-demo view, privacy-safe evidence export, participant deletion, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists. No Emirati model exists yet.
 2. **What must happen next:** fluent signers must validate the 8 sign forms, more real people must record examples, the Emirati model must be trained, the ASL model must be strengthened, and completely new people must test both models.
 3. **What it is:** a bilingual prototype that recognizes one of 4 ASL signs or one of 4 Emirati signs during a short prompted recording. The SignBridge agent can turn confirmed results into predefined reception-desk requests, run safe local actions and remember a short session. It is not a full sign-language or sentence translator.
 
@@ -169,7 +169,7 @@ This is the first screen and the main product demonstration. It completes a smal
 7. Read the **Agent action** card. Some requests create a local task number such as `SB-001`.
 8. Staff can type a short reply for the signer to read.
 9. Press **Continue with another sign** to keep the conversation in memory. `Again` or `Repeat` can then show the earlier staff reply.
-10. Press **Complete task and clear session**. The temporary conversation disappears and is not written to disk.
+10. Press **End and clear signer session**. The temporary conversation disappears and is not written to disk. The staff task remains until staff records its real outcome.
 
 The first version uses a small rule-based action engine, not a chatbot. That makes every possible action visible, predictable and testable. Task numbers are saved locally and remain after a restart. They do not change bookings or summon an interpreter. A real staff notification happens only if an administrator explicitly configures and enables the optional webhook.
 
@@ -179,12 +179,15 @@ This is the simple work queue for the person helping signers.
 
 - New confirmed help requests appear as **Pending** tasks with IDs such as `SB-001`.
 - Staff can **Accept**, type or choose a short reply, then **Complete** a task.
+- Staff finishes with **Complete successfully**, **Mark wrong action** or **Cancel selected**. This prevents a wrong action from being counted as success.
 - A reply also appears immediately in the open signer session when that session is still active.
 - The summary shows pending, accepted, completed and delivered totals plus average completion time.
 - Completed tasks are hidden by default but can be shown.
 - Tasks are stored in `data/agent_tasks.json`; sign video is not stored there.
 - The optional webhook can notify a Slack, Teams workflow or compatible HTTPS endpoint. It is off by default. Use **Send safe test** before enabling it for real tasks.
 - A successful notification means only that the endpoint accepted the message. It does not prove a person read or completed it.
+- **Export privacy-safe evidence report** produces aggregate completion, false-action, correction and timing measurements without replies or participant IDs.
+- The privacy controls can forget the saved webhook URL or delete all local task history.
 
 ### Recognize
 
@@ -226,6 +229,7 @@ This is the data collection and model training screen.
 - Record training attempts live, or press **Import short video** for one consented 2–5 second clip containing exactly the selected sign.
 - Use **Remove last sample** when the latest recording was clearly wrong. It is moved to a recoverable trash folder.
 - Train or update the selected language model after enough data is collected.
+- To honour a withdrawal, enter the participant's Person ID in the privacy section. Their training and final-test records are permanently deleted. Any trained model influenced by them is also removed and must be retrained.
 
 The sample count shows a practical target of 30 for each class. Five examples per class is the technical minimum for checking whether the software pipeline can train, so you can start testing before reaching 30. A small dataset is not enough for a general accuracy claim.
 
@@ -270,6 +274,7 @@ Control always starts off. Changing modes requires arming again. Leaving the tab
 - Press **Full screen** or `F11` for full-screen mode.
 - Press `Escape`, `F11` or **Exit full screen** to leave full-screen mode.
 - Press **Reset layout** if the window or divider becomes awkward.
+- Press **Competition demo** to hide training, testing, recognition-only and computer-control tabs. Press **Show setup tools** to restore them.
 - Each controls page scrolls vertically when the window is too short to show every function at once.
 - On a narrow controls panel, the tab names automatically shorten to **Agent**, **Use**, **Train**, **Test**, **Desk** and **PC**.
 
@@ -527,6 +532,9 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 - The SignBridge agent blocks speech and actions until the sign and complete request are confirmed.
 - Every supported request maps to a tested action handler.
 - Local tasks persist, can be accepted/replied to/completed and produce basic workflow measurements.
+- Staff can label successful, wrong-action and cancelled outcomes instead of treating every closed task as success.
+- The evidence report excludes replies, webhook URLs, camera data and participant identifiers.
+- Participant deletion removes their training and final-test records and any affected trained model.
 - Unsafe webhook URLs are rejected, and webhook payloads are tested without sending real requests.
 - A short training video can be converted into the same 32-step landmark format without storing the raw video.
 - A second turn can reuse an earlier staff reply.
@@ -607,8 +615,8 @@ Use this wording:
 2. Open **SignBridge agent** and explicitly choose ASL or Emirati Sign Language.
 3. Record one validated sign and show that SignBridge waits for confirmation.
 4. Choose the exact request, confirm the sentence and let SignBridge speak it.
-5. Open **Staff desk**, accept the task and type a staff reply.
-6. Continue with an `Again` or `Repeat` turn, then complete and clear the session.
+5. Open **Staff desk**, accept the task, type a staff reply and record the honest outcome.
+6. Continue with an `Again` or `Repeat` turn, then end and clear the signer session.
 7. Show an unsupported movement producing “Not sure” without advancing, speaking or acting.
 8. Briefly show the Final test report and explain that new people were kept out of training.
 

@@ -13,10 +13,10 @@
 - One confirmed sign opens a small set of predefined reception-desk requests.
 - The signer confirms both the sign and the complete request before speech or action.
 - A rule-based action engine creates persistent local reception tasks.
-- The Staff desk can accept, reply to and complete tasks and measure basic completion time.
+- The Staff desk can accept and reply to tasks, label successful/wrong/cancelled outcomes, export aggregate evidence and measure completion time.
 - Staff can type a short reply, and the person can continue with another sign.
 - The session remembers an earlier staff reply for `Again` or `Repeat`.
-- Completing the interaction closes local tasks and clears the temporary conversation.
+- Ending the signer interaction clears temporary conversation text. Staff independently records the persistent task's real outcome.
 - An optional, administrator-configured HTTPS webhook can notify a real staff channel. It does not create bookings or request interpreters.
 
 The next proof is not a larger vocabulary. Test whether real users can finish the supported interaction without a false action, how often they need correction, whether the action selected was correct, and how long it takes.

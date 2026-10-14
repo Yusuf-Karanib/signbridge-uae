@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from signbridge.tasks import DeliveryStatus, TaskStatus, TaskStore
+from signbridge.tasks import DeliveryStatus, TaskOutcome, TaskStatus, TaskStore
 
 
 class TaskStoreTests(unittest.TestCase):
@@ -18,6 +18,9 @@ class TaskStoreTests(unittest.TestCase):
                 title="Appointment task",
                 message="Help with an appointment",
                 language="asl",
+                input_method="camera",
+                correction_used=False,
+                confidence=0.91,
             )
             second = store.create(
                 action_id="request_water",
@@ -33,7 +36,7 @@ class TaskStoreTests(unittest.TestCase):
             store.mark_delivery(
                 first.id, DeliveryStatus.SENT, "Notification delivered"
             )
-            store.update_status(first.id, TaskStatus.COMPLETED)
+            store.mark_outcome(first.id, TaskOutcome.SUCCESS)
 
             reloaded = TaskStore(path)
             task = reloaded.get(first.id)
@@ -41,10 +44,36 @@ class TaskStoreTests(unittest.TestCase):
             self.assertEqual(task.status, TaskStatus.COMPLETED)
             self.assertEqual(task.staff_reply, "I will help you now.")
             self.assertEqual(task.delivery_status, DeliveryStatus.SENT)
+            self.assertEqual(task.outcome, TaskOutcome.SUCCESS)
+            self.assertEqual(task.input_method, "camera")
+            self.assertEqual(task.confidence, 0.91)
             summary = reloaded.summary()
             self.assertEqual(summary["pending"], 1)
             self.assertEqual(summary["completed"], 1)
             self.assertEqual(summary["sent"], 1)
+            self.assertEqual(summary["successful"], 1)
+            self.assertEqual(summary["false_action_rate"], 0.0)
+
+            reloaded.mark_outcome(second.id, TaskOutcome.WRONG_ACTION)
+            report_path = reloaded.write_evidence_report(
+                Path(temp) / "evidence.json"
+            )
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report["summary"]["wrong_action"], 1)
+            self.assertEqual(report["summary"]["false_action_rate"], 0.5)
+            self.assertNotIn("I will help you now", report_path.read_text(encoding="utf-8"))
+
+            cancelled = reloaded.create(
+                action_id="interpreter",
+                title="Interpreter task",
+                message="Request an interpreter",
+                language="asl",
+            )
+            reloaded.mark_outcome(cancelled.id, TaskOutcome.CANCELLED)
+            self.assertEqual(reloaded.summary()["false_action_rate"], 0.5)
+
+            self.assertEqual(reloaded.clear_all(), 3)
+            self.assertEqual(reloaded.summary()["total"], 0)
 
     def test_unreadable_task_file_is_not_overwritten(self) -> None:
         with TemporaryDirectory() as temp:

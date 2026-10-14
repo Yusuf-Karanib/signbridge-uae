@@ -22,6 +22,7 @@ assets/models/*.task
 # Generated bundles and logs.
 work/
 outputs/*.zip
+outputs/signbridge-evidence-report*.json
 outputs/SignBridge-UAE-prototype/
 *.log
 

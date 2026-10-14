@@ -45,6 +45,9 @@ class AgentSettingsStore:
         self._save()
         return self.settings
 
+    def clear_webhook(self) -> WebhookSettings:
+        return self.save_webhook(enabled=False, url="")
+
     def _load(self) -> WebhookSettings:
         if self.path is None or not self.path.exists():
             return WebhookSettings()
@@ -123,7 +126,7 @@ class StaffWebhookConnector:
             data=json.dumps({"text": str(text)}, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Content-Type": "application/json; charset=utf-8",
-                "User-Agent": "SignBridge-UAE/0.3",
+                "User-Agent": "SignBridge-UAE/0.4",
             },
             method="POST",
         )

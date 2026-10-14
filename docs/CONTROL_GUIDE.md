@@ -55,10 +55,12 @@ Restart Windows after a driver update, then open SignBridge. A successful fix wi
 4. Choose the exact request.
 5. Read the complete sentence, then press **Confirm and show to staff**.
 6. Read the **Agent action** card. Local task IDs such as `SB-001` are saved on this computer.
-7. Open **Staff desk** to accept the task, save a reply and complete it. A webhook notification happens only when an administrator has configured and enabled it.
+7. Open **Staff desk** to accept the task, save a reply and record whether it completed successfully, was the wrong action or was cancelled. A webhook notification happens only when an administrator has configured and enabled it.
 7. Staff can type a reply and press **Show reply**.
 8. Press **Continue with another sign** to keep the earlier reply in memory.
-9. Press **Complete task and clear session** before the next person uses the app.
+9. Press **End and clear signer session** before the next person uses the app. This clears the conversation but leaves the task outcome under staff control.
+
+Press **Competition demo** to hide setup and experimental tabs during a presentation. Press **Show setup tools** to restore them.
 
 SignBridge will not speak or run an action until the sign and complete request have both been confirmed. The choices after a sign are predefined buttons; they are not a translated sentence. A staff webhook is optional; booking and interpreter services are not connected.
 
