@@ -20,17 +20,17 @@ class AssistanceSessionTests(unittest.TestCase):
         self.assertEqual(session.turns, [])
 
         with self.assertRaises(ValueError):
-            session.choose_request("directions")
+            session.choose_request("hotel_check_in")
 
         options = session.confirm_sign()
         self.assertEqual(session.stage, AssistanceStage.CHOOSE_REQUEST)
-        self.assertIn("directions", {option.id for option in options})
-        session.choose_request("directions")
+        self.assertIn("hotel_check_in", {option.id for option in options})
+        session.choose_request("hotel_check_in")
         self.assertEqual(session.stage, AssistanceStage.CONFIRM_REQUEST)
         self.assertEqual(session.turns, [])
 
         sent = session.send_request("en-US")
-        self.assertEqual(sent.text, "I need help with directions.")
+        self.assertEqual(sent.text, "I need help checking in at the hotel.")
         self.assertEqual(session.stage, AssistanceStage.WAITING_REPLY)
         self.assertEqual(len(session.turns), 1)
 
@@ -71,10 +71,10 @@ class AssistanceSessionTests(unittest.TestCase):
             language="asl", label="help", text="Help", confidence=0.90
         )
         session.confirm_sign()
-        session.choose_request("directions")
+        session.choose_request("hotel_service")
         session.send_request("en-US")
-        session.add_agent_message("A local directions task was created.", "en-US")
-        session.add_staff_reply("Registration is on the left.", "en-US")
+        session.add_agent_message("A local hotel service task was created.", "en-US")
+        session.add_staff_reply("Hotel staff accepted the request.", "en-US")
 
         session.continue_conversation()
 

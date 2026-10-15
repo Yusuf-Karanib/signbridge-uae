@@ -13,28 +13,30 @@ The software is not yet a validated bilingual recognizer. The local ASL model is
 ## Competition scope now
 
 - Competition demo accepts only the `Help` sign.
-- It offers only directions, appointment help and interpreter request.
+- It offers only hotel check-in assistance, room/hotel service help and interpreter request.
 - Interpreter request is the hero scenario.
 - Best Societal AI Agent remains the recommended category.
 
-## Current controlled reception workflow
+## Current controlled hotel workflow
 
-- One confirmed sign opens a small set of predefined reception-desk requests.
+- One confirmed sign opens a small set of predefined hotel-service requests.
 - The signer confirms both the sign and the complete request before speech or action.
-- A rule-based action engine creates persistent local reception tasks.
-- The Staff desk can accept and reply to tasks, label successful/wrong/cancelled outcomes, export aggregate evidence and measure completion time.
+- A rule-based action engine creates persistent local hotel-staff tasks.
+- The Staff desk can accept and reply to tasks, mark service delivered, label wrong/cancelled actions, export aggregate evidence and measure completion time.
+- The guest confirms whether the delivered service actually resolved the request; only that confirmation counts as success.
+- The agent panel visibly shows goal confirmation, task creation, notification, staff progress, guest verification and session clearing.
 - Staff can type a short reply, and the person can continue with another sign.
 - The session remembers an earlier staff reply for `Again` or `Repeat`.
 - Ending the signer interaction clears temporary conversation text. Staff independently records the persistent task's real outcome.
 - An optional, administrator-configured HTTPS webhook can notify a real staff channel. It does not create bookings or request interpreters.
 
-The next build is not a larger vocabulary. Add a visible goal-plan-tool-wait-verify-stop lifecycle, attempt-level evidence, visitor-confirmed outcomes and remote Final-test video import. Then test whether real users can finish the supported interaction without a false action.
+The next build is not a larger vocabulary. Add attempt-level evidence, complete workflow timing and remote Final-test video import. Then test whether real users can finish the supported hotel interaction without a false action.
 
 ## Now: first real service connection
 
-- Choose one real setting, such as a reception desk.
+- Use a hotel reception as the first concrete setting.
 - The app now supports one opt-in Slack/Teams-compatible staff notification webhook. A venue must provide and test its own URL.
-- Booking, check-in and interpreter APIs are still future connections.
+- Reservation, identity, room-key, payment and interpreter APIs are still future connections.
 - Show the user exactly what will happen before every outside action.
 - Record success, failure and cancellation without saving sign video.
 - Keep a manual staff fallback whenever a service is unavailable.

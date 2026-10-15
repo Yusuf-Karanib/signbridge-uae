@@ -73,6 +73,7 @@ from signbridge.tasks import (
     ReceptionTask,
     TaskOutcome,
     TaskStatus,
+    VisitorOutcome,
 )
 from signbridge.validation import ValidationStore
 from signbridge.video_import import extract_training_video
@@ -337,6 +338,7 @@ class MainWindow(QMainWindow):
         reception_agent: ReceptionAgent | None = None,
         settings_store: AgentSettingsStore | None = None,
         webhook_connector: StaffWebhookConnector | None = None,
+        auto_start_camera: bool = True,
     ) -> None:
         super().__init__()
         self.vocabulary = Vocabulary.load()
@@ -397,7 +399,8 @@ class MainWindow(QMainWindow):
         self._connect_events()
         self._refresh_all()
         QTimer.singleShot(0, self._apply_initial_splitter_sizes)
-        QTimer.singleShot(200, self._start_selected_camera)
+        if auto_start_camera:
+            QTimer.singleShot(200, self._start_selected_camera)
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -411,7 +414,7 @@ class MainWindow(QMainWindow):
         title = QLabel("SignBridge UAE")
         title.setObjectName("title")
         self.subtitle_label = QLabel(
-            "Limited sign-intent prototype  •  confirm intent  →  run safe action  →  reply"
+            "Hotel access pilot  •  confirm intent  →  complete a safe service workflow"
         )
         self.subtitle_label.setObjectName("subtitle")
         title_group.addWidget(title)
@@ -435,7 +438,7 @@ class MainWindow(QMainWindow):
         root.addLayout(header)
 
         self.scope_label = QLabel(
-            "Prototype scope: 4 ASL signs + 4 Emirati signs. The controlled agent remembers a short session and runs local reception actions — not full sign-language translation."
+            "Prototype scope: limited confirmed sign intents for a hotel service workflow. It is not full sign-language translation."
         )
         self.scope_label.setWordWrap(True)
         self.scope_label.setObjectName("warning")
@@ -695,7 +698,7 @@ class MainWindow(QMainWindow):
         tab, layout = self._scroll_page()
 
         notice = QLabel(
-            "This is a controlled reception agent. It understands only supported, confirmed requests. Local tasks work now and staff notification is optional; booking and interpreter services are not connected."
+            "This is a controlled hotel-service pilot. It understands only supported, confirmed requests. Local tasks work now and staff notification is optional; reservation, room-key and interpreter services are not connected."
         )
         notice.setWordWrap(True)
         notice.setObjectName("warning")
@@ -767,8 +770,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(correction_card)
 
         self.assist_followup_card, followup_layout = self._section_card(
-            "2. What does the person need?",
-            "Choose one clear follow-up. These are buttons, not signs guessed by the camera.",
+            "2. What hotel help does the guest need?",
+            "Choose one supported goal. These are accessible confirmation buttons, not signs guessed by the camera.",
         )
         self.assist_followup_buttons = [QPushButton() for _ in range(4)]
         followup_grid = QGridLayout()
@@ -802,8 +805,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.assist_request_card)
 
         self.assist_action_card, action_layout = self._section_card(
-            "4. Agent action",
-            "The confirmed request chooses one visible, limited function. Staff notification is optional; booking and interpreter services are not connected.",
+            "4. Agent progress",
+            "The agent follows a visible, limited plan. It never changes a reservation, verifies identity or issues a room key.",
         )
         self.assist_action_status = QLabel("No action yet")
         self.assist_action_status.setObjectName("success")
@@ -816,8 +819,24 @@ class MainWindow(QMainWindow):
         self.assist_action_message = QLabel("—")
         self.assist_action_message.setWordWrap(True)
         action_layout.addWidget(self.assist_action_message)
+        self.assist_agent_progress = QLabel("No plan running")
+        self.assist_agent_progress.setWordWrap(True)
+        self.assist_agent_progress.setObjectName("modelStatus")
+        action_layout.addWidget(self.assist_agent_progress)
+        self.assist_visitor_prompt = QLabel("Waiting for hotel staff")
+        self.assist_visitor_prompt.setWordWrap(True)
+        self.assist_visitor_prompt.setObjectName("sectionTitle")
+        action_layout.addWidget(self.assist_visitor_prompt)
+        visitor_buttons = QHBoxLayout()
+        visitor_buttons.setSpacing(8)
+        self.assist_resolved_button = QPushButton("Yes, my request is resolved")
+        self.assist_resolved_button.setObjectName("primary")
+        self.assist_needs_help_button = QPushButton("No, I still need help")
+        visitor_buttons.addWidget(self.assist_resolved_button, 1)
+        visitor_buttons.addWidget(self.assist_needs_help_button, 1)
+        action_layout.addLayout(visitor_buttons)
         self.assist_action_safety = QLabel(
-            "Tasks are saved locally. If the Staff desk webhook is enabled, a new confirmed task also sends one staff notification."
+            "Tasks are saved locally. If the Staff desk webhook is enabled, a new confirmed task also sends one staff notification. Success is counted only after the guest confirms the outcome."
         )
         self.assist_action_safety.setObjectName("warning")
         self.assist_action_safety.setWordWrap(True)
@@ -1114,7 +1133,7 @@ class MainWindow(QMainWindow):
         self.staff_show_completed = QCheckBox("Show completed")
         self.staff_refresh_button = QPushButton("Refresh")
         self.staff_accept_button = QPushButton("Accept selected")
-        self.staff_complete_button = QPushButton("Complete successfully")
+        self.staff_complete_button = QPushButton("Mark service delivered")
         self.staff_wrong_action_button = QPushButton("Mark wrong action")
         self.staff_wrong_action_button.setObjectName("danger")
         self.staff_cancel_button = QPushButton("Cancel selected")
@@ -1216,7 +1235,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(connection_card)
 
         history_card, history_layout = self._section_card(
-            "Privacy: clear reception history",
+            "Privacy: clear service history",
             "Permanently deletes every local task, status and staff reply. It does not delete training samples.",
         )
         self.staff_clear_history_button = QPushButton(
@@ -1331,6 +1350,10 @@ class MainWindow(QMainWindow):
             self._continue_assistance_session
         )
         self.assist_complete_button.clicked.connect(self._complete_assistance_session)
+        self.assist_resolved_button.clicked.connect(self._visitor_request_resolved)
+        self.assist_needs_help_button.clicked.connect(
+            self._visitor_still_needs_help
+        )
         self.assist_staff_reply.returnPressed.connect(self._add_assistance_reply)
         self.staff_task_table.itemSelectionChanged.connect(
             self._refresh_staff_selection
@@ -1414,16 +1437,16 @@ class MainWindow(QMainWindow):
         self._populate_assistance_signs()
         if self.demo_mode_enabled:
             self.assistance_feedback = (
-                "Competition demo ready. Use the validated Help sign, then choose one of three desk goals."
+                "Hotel pilot ready. Use the validated Help sign, then choose one of three hotel-service goals."
             )
             self.scope_label.setText(
-                "Competition demo: Help can create only a directions, appointment-help or interpreter task after confirmation. This is not full sign-language translation."
+                "Hotel pilot: Help can create only a check-in-assistance, hotel-service or interpreter task after confirmation. This is not full sign-language translation."
             )
             self.demo_mode_button.setObjectName("primary")
         else:
             self.assistance_feedback = "Setup tools restored. Ready for a new request."
             self.scope_label.setText(
-                "Prototype scope: 4 ASL signs + 4 Emirati signs. The controlled agent remembers a short session and runs local reception actions — not full sign-language translation."
+                "Prototype scope: 4 ASL signs + 4 Emirati signs. The controlled agent remembers a short session and runs limited hotel-service actions — not full sign-language translation."
             )
             self.demo_mode_button.setObjectName("")
         self.demo_mode_button.style().unpolish(self.demo_mode_button)
@@ -1684,20 +1707,77 @@ class MainWindow(QMainWindow):
             if self.assistance_action_results
             else None
         )
+        latest_task = self._task_for_action(latest_action)
         self.assist_action_card.setVisible(latest_action is not None)
         if latest_action is not None:
-            status_text = {
-                AgentActionStatus.COMPLETED: "Completed inside SignBridge",
-                AgentActionStatus.WAITING_FOR_STAFF: "Waiting for staff",
-                AgentActionStatus.LOCAL_TASK: (
-                    f"Local task {latest_action.task_id} created"
-                ),
-            }[latest_action.status]
+            if latest_task is not None:
+                if latest_task.outcome == TaskOutcome.WRONG_ACTION:
+                    status_text = "Hotel task was marked as the wrong action"
+                elif latest_task.outcome == TaskOutcome.CANCELLED:
+                    status_text = "Hotel task was cancelled"
+                elif latest_task.visitor_outcome == VisitorOutcome.RESOLVED:
+                    status_text = "Guest confirmed the request is resolved"
+                elif latest_task.status == TaskStatus.COMPLETED:
+                    status_text = "Hotel staff marked service delivered"
+                elif latest_task.visitor_outcome == VisitorOutcome.NEEDS_HELP:
+                    status_text = "Guest requested more help"
+                elif latest_task.status == TaskStatus.ACCEPTED:
+                    status_text = "Hotel staff accepted the request"
+                else:
+                    status_text = f"Hotel task {latest_task.id} is waiting for staff"
+            else:
+                status_text = {
+                    AgentActionStatus.COMPLETED: "Completed inside SignBridge",
+                    AgentActionStatus.WAITING_FOR_STAFF: "Waiting for staff",
+                    AgentActionStatus.LOCAL_TASK: "Local task created",
+                }[latest_action.status]
             self.assist_action_status.setText(status_text)
             self.assist_action_title.setText(latest_action.title)
             self.assist_action_title.setLayoutDirection(direction)
             self.assist_action_message.setText(latest_action.message)
             self.assist_action_message.setLayoutDirection(direction)
+            self.assist_agent_progress.setText(
+                self._agent_progress_text(latest_action, latest_task)
+            )
+
+        verification_visible = latest_task is not None
+        self.assist_visitor_prompt.setVisible(verification_visible)
+        if latest_task is None:
+            self.assist_resolved_button.hide()
+            self.assist_needs_help_button.hide()
+        elif latest_task.visitor_outcome == VisitorOutcome.RESOLVED:
+            self.assist_visitor_prompt.setText(
+                "Guest confirmation recorded. The private signer session can now be cleared."
+            )
+            self.assist_resolved_button.hide()
+            self.assist_needs_help_button.hide()
+        elif latest_task.outcome == TaskOutcome.WRONG_ACTION:
+            self.assist_visitor_prompt.setText(
+                "Staff marked this as the wrong action. It is not counted as a successful request."
+            )
+            self.assist_resolved_button.hide()
+            self.assist_needs_help_button.hide()
+        elif latest_task.outcome == TaskOutcome.CANCELLED:
+            self.assist_visitor_prompt.setText(
+                "This request was cancelled. It is not counted as a successful request."
+            )
+            self.assist_resolved_button.hide()
+            self.assist_needs_help_button.hide()
+        elif latest_task.status == TaskStatus.COMPLETED:
+            self.assist_visitor_prompt.setText(
+                "Hotel staff says the service was delivered. Did this solve the request?"
+            )
+            self.assist_resolved_button.show()
+            self.assist_needs_help_button.show()
+        else:
+            prompt = (
+                "The request was reopened because the guest still needs help."
+                if latest_task.visitor_outcome == VisitorOutcome.NEEDS_HELP
+                else "Waiting for hotel staff to deliver the service."
+            )
+            self.assist_visitor_prompt.setText(prompt)
+            self.assist_resolved_button.hide()
+            self.assist_needs_help_button.hide()
 
         show_conversation = bool(session.turns)
         self.assist_conversation_card.setVisible(show_conversation)
@@ -1745,6 +1825,61 @@ class MainWindow(QMainWindow):
                 "Step 5 of 5 — staff can reply or the person can continue"
             )
 
+    def _task_for_action(
+        self, action: AgentActionResult | None
+    ) -> ReceptionTask | None:
+        if action is None or action.task_id is None:
+            return None
+        return self.reception_agent.task_store.get(action.task_id)
+
+    @staticmethod
+    def _agent_progress_text(
+        action: AgentActionResult, task: ReceptionTask | None
+    ) -> str:
+        if task is None:
+            return (
+                "1. Confirm the guest's goal — done\n"
+                "2. Choose the allowed action — done\n"
+                "3. Run the action — done\n"
+                "4. Report the result — done"
+            )
+        delivery = {
+            DeliveryStatus.NOT_CONFIGURED: "local staff desk used",
+            DeliveryStatus.SENDING: "notification sending",
+            DeliveryStatus.SENT: "staff notification sent",
+            DeliveryStatus.FAILED: "notification failed; local desk kept as fallback",
+        }[task.delivery_status]
+        staff = {
+            TaskStatus.PENDING: "waiting for staff",
+            TaskStatus.ACCEPTED: "accepted by staff",
+            TaskStatus.COMPLETED: "staff marked service delivered",
+        }[task.status]
+        visitor = {
+            VisitorOutcome.NOT_RECORDED: "waiting for guest confirmation",
+            VisitorOutcome.RESOLVED: "guest confirmed resolved",
+            VisitorOutcome.NEEDS_HELP: "guest requested more help",
+        }[task.visitor_outcome]
+        if task.outcome == TaskOutcome.WRONG_ACTION:
+            staff = "stopped; staff marked the task as wrong"
+            visitor = "stopped; staff marked the action as wrong"
+        elif task.outcome == TaskOutcome.CANCELLED:
+            staff = "stopped; task cancelled"
+            visitor = "stopped; task cancelled"
+        if task.outcome in (TaskOutcome.WRONG_ACTION, TaskOutcome.CANCELLED):
+            stop = "stopped without recording success"
+        elif task.visitor_outcome == VisitorOutcome.RESOLVED:
+            stop = "ready to clear the signer session"
+        else:
+            stop = "waiting for the guest"
+        return (
+            "1. Confirm the guest's goal — done\n"
+            f"2. Create approved hotel task {task.id} — done\n"
+            f"3. Notify hotel staff — {delivery}\n"
+            f"4. Wait for service — {staff}\n"
+            f"5. Verify the outcome — {visitor}\n"
+            f"6. Stop and clear the signer session — {stop}"
+        )
+
     def _refresh_staff_tab(self, *_args: Any) -> None:
         selected = self._selected_staff_task()
         selected_id = selected.id if selected is not None else None
@@ -1775,7 +1910,15 @@ class MainWindow(QMainWindow):
             task_item.setData(Qt.ItemDataRole.UserRole, task.id)
             self.staff_task_table.setItem(row, 0, task_item)
             self.staff_task_table.setItem(row, 1, QTableWidgetItem(task.title))
-            status_text = outcome_names[task.outcome] or status_names[task.status]
+            if (
+                task.status == TaskStatus.COMPLETED
+                and task.outcome == TaskOutcome.UNREVIEWED
+            ):
+                status_text = "Awaiting guest check"
+            elif task.visitor_outcome == VisitorOutcome.NEEDS_HELP:
+                status_text = "Guest needs more help"
+            else:
+                status_text = outcome_names[task.outcome] or status_names[task.status]
             self.staff_task_table.setItem(row, 2, QTableWidgetItem(status_text))
             self.staff_task_table.setItem(
                 row, 3, QTableWidgetItem(delivery_names[task.delivery_status])
@@ -1805,6 +1948,7 @@ class MainWindow(QMainWindow):
         self.staff_evidence_summary.setText(
             f"Reviewed {summary['reviewed']}/{summary['total']} • "
             f"successful {summary['successful']} • wrong actions {summary['wrong_action']} • "
+            f"guest confirmed {summary['visitor_confirmed']} • "
             f"task completion {percent(summary['task_completion_rate'])} • "
             f"false-action rate {percent(summary['false_action_rate'])} • "
             f"correction rate {percent(summary['correction_rate'])}"
@@ -1813,6 +1957,8 @@ class MainWindow(QMainWindow):
         if load_error:
             self.staff_action_status.setText(load_error)
         self._refresh_staff_selection()
+        if hasattr(self, "assist_action_status"):
+            self._render_assistance()
 
     def _selected_staff_task(self) -> ReceptionTask | None:
         if not hasattr(self, "staff_task_table"):
@@ -1860,10 +2006,12 @@ class MainWindow(QMainWindow):
         if task is None:
             return
         try:
-            self.reception_agent.task_store.mark_outcome(
-                task.id, TaskOutcome.SUCCESS
+            self.reception_agent.task_store.update_status(
+                task.id, TaskStatus.COMPLETED
             )
-            self.staff_action_status.setText(f"{task.id} completed successfully")
+            self.staff_action_status.setText(
+                f"{task.id} marked delivered; waiting for guest confirmation"
+            )
         except (RuntimeError, ValueError) as exc:
             self.staff_action_status.setText(str(exc))
         self._refresh_staff_tab()
@@ -3117,6 +3265,66 @@ class MainWindow(QMainWindow):
             "Conversation memory kept. Record the next supported sign."
         )
         self._render_assistance()
+
+    def _visitor_request_resolved(self) -> None:
+        latest_action = (
+            self.assistance_action_results[-1]
+            if self.assistance_action_results
+            else None
+        )
+        task = self._task_for_action(latest_action)
+        if (
+            task is None
+            or task.status != TaskStatus.COMPLETED
+            or task.outcome in (TaskOutcome.WRONG_ACTION, TaskOutcome.CANCELLED)
+        ):
+            self.assistance_feedback = (
+                "Only a delivered hotel service can be confirmed as resolved."
+            )
+            self._render_assistance()
+            return
+        try:
+            self.reception_agent.task_store.mark_visitor_outcome(
+                task.id, VisitorOutcome.RESOLVED
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.assistance_feedback = str(exc)
+            self._render_assistance()
+            return
+        self.assistance_feedback = (
+            "Guest confirmed the request is resolved. The signer session can now be cleared."
+        )
+        self._refresh_staff_tab()
+
+    def _visitor_still_needs_help(self) -> None:
+        latest_action = (
+            self.assistance_action_results[-1]
+            if self.assistance_action_results
+            else None
+        )
+        task = self._task_for_action(latest_action)
+        if (
+            task is None
+            or task.status != TaskStatus.COMPLETED
+            or task.outcome in (TaskOutcome.WRONG_ACTION, TaskOutcome.CANCELLED)
+        ):
+            self.assistance_feedback = (
+                "Only a delivered hotel service can be reopened for more help."
+            )
+            self._render_assistance()
+            return
+        try:
+            self.reception_agent.task_store.mark_visitor_outcome(
+                task.id, VisitorOutcome.NEEDS_HELP
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.assistance_feedback = str(exc)
+            self._render_assistance()
+            return
+        self.assistance_feedback = (
+            "The request was reopened. Hotel staff can continue helping the guest."
+        )
+        self._refresh_staff_tab()
 
     def _clear_assistance_actions(self, *, complete_tasks: bool = False) -> None:
         if complete_tasks:

@@ -13,7 +13,7 @@ from signbridge.assistance import AssistanceStage
 from signbridge.classifier import Prediction
 from signbridge.config import UNKNOWN_LABEL
 from signbridge.integrations import AgentSettingsStore
-from signbridge.tasks import TaskOutcome, TaskStatus, TaskStore
+from signbridge.tasks import TaskOutcome, TaskStatus, TaskStore, VisitorOutcome
 from signbridge.ui import MainWindow
 
 
@@ -27,6 +27,7 @@ class AssistanceUiTests(unittest.TestCase):
         return MainWindow(
             reception_agent=ReceptionAgent(TaskStore.in_memory()),
             settings_store=AgentSettingsStore.in_memory(),
+            auto_start_camera=False,
         )
 
     def test_accepted_prediction_is_silent_until_full_request_is_confirmed(self) -> None:
@@ -48,16 +49,18 @@ class AssistanceUiTests(unittest.TestCase):
             speak.assert_not_called()
 
             window._confirm_assistance_sign()
-            window.assistance_session.choose_request("directions")
+            window.assistance_session.choose_request("hotel_check_in")
             window._render_assistance()
             speak.assert_not_called()
             self.assertEqual(window.assistance_action_results, [])
 
             window._send_assistance_request()
-            speak.assert_called_once_with("I need help with directions.", "en-US")
+            speak.assert_called_once_with(
+                "I need help checking in at the hotel.", "en-US"
+            )
             self.assertEqual(len(window.assistance_action_results), 1)
             action = window.assistance_action_results[0]
-            self.assertEqual(action.action_id, "directions")
+            self.assertEqual(action.action_id, "hotel_check_in")
             self.assertFalse(action.external_action_taken)
             self.assertEqual(
                 window.assistance_session.turns[-1].speaker, "Agent"
@@ -153,7 +156,7 @@ class AssistanceUiTests(unittest.TestCase):
             window.assist_manual_sign.setCurrentIndex(help_index)
             window._use_manual_assistance_sign()
             window._confirm_assistance_sign()
-            window.assistance_session.choose_request("directions")
+            window.assistance_session.choose_request("hotel_service")
             window._send_assistance_request()
 
         self.assertEqual(window.staff_task_table.rowCount(), 1)
@@ -183,9 +186,37 @@ class AssistanceUiTests(unittest.TestCase):
         )
         self.assertEqual(
             window.reception_agent.task_store.get(task_id).outcome,
-            TaskOutcome.SUCCESS,
+            TaskOutcome.UNREVIEWED,
         )
         self.assertEqual(window.staff_task_table.rowCount(), 0)
+
+        window._visitor_request_resolved()
+        confirmed = window.reception_agent.task_store.get(task_id)
+        self.assertEqual(confirmed.outcome, TaskOutcome.SUCCESS)
+        self.assertEqual(confirmed.visitor_outcome, VisitorOutcome.RESOLVED)
+        window.close()
+
+    def test_guest_needs_help_reopens_the_hotel_task(self) -> None:
+        window = self._window()
+        with patch.object(window.speech, "speak"):
+            help_index = window.assist_manual_sign.findData("help")
+            window.assist_manual_sign.setCurrentIndex(help_index)
+            window._use_manual_assistance_sign()
+            window._confirm_assistance_sign()
+            window.assistance_session.choose_request("hotel_service")
+            window._send_assistance_request()
+
+        task_id = window.assistance_action_results[-1].task_id
+        window.reception_agent.task_store.update_status(
+            task_id, TaskStatus.COMPLETED
+        )
+        window._visitor_still_needs_help()
+
+        reopened = window.reception_agent.task_store.get(task_id)
+        self.assertEqual(reopened.status, TaskStatus.ACCEPTED)
+        self.assertEqual(reopened.outcome, TaskOutcome.UNREVIEWED)
+        self.assertEqual(reopened.visitor_outcome, VisitorOutcome.NEEDS_HELP)
+        self.assertIn("reopened", window.assistance_feedback.lower())
         window.close()
 
     def test_competition_demo_hides_setup_and_experiment_tabs(self) -> None:
@@ -203,17 +234,17 @@ class AssistanceUiTests(unittest.TestCase):
         window._use_manual_assistance_sign()
         window._confirm_assistance_sign()
         visible_options = window.assistance_session.available_options(
-            frozenset({"directions", "appointment", "interpreter"})
+            frozenset({"hotel_check_in", "hotel_service", "interpreter"})
         )
         self.assertEqual(
             {option.id for option in visible_options},
-            {"directions", "appointment", "interpreter"},
+            {"hotel_check_in", "hotel_service", "interpreter"},
         )
         with self.assertRaises(ValueError):
             window.assistance_session.choose_request(
                 "other",
                 allowed_ids=frozenset(
-                    {"directions", "appointment", "interpreter"}
+                    {"hotel_check_in", "hotel_service", "interpreter"}
                 ),
             )
 

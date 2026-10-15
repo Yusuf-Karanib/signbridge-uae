@@ -6,9 +6,9 @@ For a short operating manual for the latest camera and computer controls, read `
 
 ## Read these three parts first
 
-1. **What exists now:** the application, improved hand tracking, consented live and short-video training, testing, text, speech, a controlled reception workflow, a persistent Staff desk, a focused competition-demo view, aggregate evidence export, participant deletion, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists but is unreliable and unvalidated. No Emirati model exists yet.
+1. **What exists now:** the application, improved hand tracking, consented live and short-video training, testing, text, speech, a controlled hotel-service workflow, a visible agent progress trail, guest outcome confirmation, a persistent Staff desk, a focused competition-demo view, aggregate evidence export, participant deletion, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists but is unreliable and unvalidated. No Emirati model exists yet.
 2. **What must happen next:** fluent signers must validate the 8 sign forms, more real people must record examples, the Emirati model must be trained, the ASL model must be strengthened, and completely new people must test both models.
-3. **What it is:** a prototype configured for 4 ASL signs and 4 Emirati signs during a short prompted recording. Those two modes are not yet validated working recognizers. The SignBridge workflow can turn confirmed results into predefined reception-desk requests, run safe local actions and remember a short session. It is not a full sign-language or sentence translator.
+3. **What it is:** a prototype configured for 4 ASL signs and 4 Emirati signs during a short prompted recording. Those two modes are not yet validated working recognizers. The SignBridge workflow can turn confirmed results into predefined hotel-service requests, run safe local actions, track staff progress and remember a short session. It is not a full sign-language or sentence translator.
 
 The difference between **software working** and **recognition working** is important. The software opens and the camera tracks correctly. Recognition cannot work until suitable human examples are recorded and the models are trained.
 
@@ -179,7 +179,7 @@ This is the simple work queue for the person helping signers.
 
 - New confirmed help requests appear as **Pending** tasks with IDs such as `SB-001`.
 - Staff can **Accept**, type or choose a short reply, then **Complete** a task.
-- Staff finishes with **Complete successfully**, **Mark wrong action** or **Cancel selected**. This prevents a wrong action from being counted as success.
+- Staff chooses **Mark service delivered**, **Mark wrong action** or **Cancel selected**. A delivered request counts as success only after the guest confirms it was resolved.
 - A reply also appears immediately in the open signer session when that session is still active.
 - The summary shows pending, accepted, completed and delivered totals plus average completion time.
 - Completed tasks are hidden by default but can be shown.
@@ -274,7 +274,7 @@ Control always starts off. Changing modes requires arming again. Leaving the tab
 - Press **Full screen** or `F11` for full-screen mode.
 - Press `Escape`, `F11` or **Exit full screen** to leave full-screen mode.
 - Press **Reset layout** if the window or divider becomes awkward.
-- Press **Competition demo** to hide training, testing, recognition-only and computer-control tabs. This mode accepts only `Help`, followed by directions, appointment help or interpreter request. Press **Show setup tools** to restore the broader prototype.
+- Press **Competition demo** to hide training, testing, recognition-only and computer-control tabs. This mode accepts only `Help`, followed by hotel check-in assistance, a room/hotel service request or an interpreter request. Press **Show setup tools** to restore the broader prototype.
 - Each controls page scrolls vertically when the window is too short to show every function at once.
 - On a narrow controls panel, the tab names automatically shorten to **Agent**, **Use**, **Train**, **Test**, **Desk** and **PC**.
 
@@ -425,7 +425,7 @@ User corrections do not secretly train the model. New learning only occurs throu
 
 ### How to use the SignBridge agent
 
-Use **SignBridge agent** for a short reception-desk interaction. An accepted camera prediction is only a suggestion. SignBridge remains silent and takes no action until the signer confirms the sign, chooses a follow-up request and confirms the complete sentence. A rejected prediction cannot advance the workflow or erase earlier conversation memory. Staff can reply, then the person can continue with another supported sign. Finish by clearing the session before the next person uses the app.
+Use **SignBridge agent** for a short hotel-service interaction. An accepted camera prediction is only a suggestion. SignBridge remains silent and takes no action until the signer confirms the sign, chooses a supported goal and confirms the complete sentence. A rejected prediction cannot advance the workflow or erase earlier conversation memory. The agent shows its progress while hotel staff accepts and delivers the service. The guest then confirms whether the request is resolved or still needs help. Finish by clearing the session before the next person uses the app.
 
 ## 14. How to run the final test
 
@@ -480,7 +480,7 @@ It saves:
 - Validation records.
 - Final-test outcomes.
 - Trained model files and metrics.
-- Local reception task type, status, delivery status and staff reply.
+- Local hotel-service task type, status, delivery status and staff reply.
 - Local webhook settings if an administrator saves them.
 
 Landmarks are less revealing than video but should still be treated as potentially sensitive movement data. Person IDs are pseudonyms, not guaranteed anonymity. Ask for consent, protect the project folder and do not publish the data without permission.
@@ -532,7 +532,7 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 - The SignBridge agent blocks speech and actions until the sign and complete request are confirmed.
 - Every supported request maps to a tested action handler.
 - Local tasks persist, can be accepted/replied to/completed and produce basic workflow measurements.
-- Staff can label successful, wrong-action and cancelled outcomes instead of treating every closed task as success.
+- Staff can mark delivery, wrong-action and cancelled outcomes. Delivery counts as success only after the guest confirms the request was resolved.
 - The evidence report excludes replies, webhook URLs, camera data and participant identifiers.
 - Participant deletion removes readable matching training and final-test records, removes all trained language models for safe retraining, and warns about files it could not read.
 - Unsafe webhook URLs are rejected, and webhook payloads are tested without sending real requests.
@@ -607,7 +607,7 @@ Extract it, run `setup.ps1` once, then double-click `Start SignBridge.vbs`. If t
 
 Use this wording:
 
-> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. Its controlled reception agent asks the signer to confirm the result and complete request before speech or action. It creates a persistent staff task, supports a staff reply and can optionally notify one configured staff webhook. It does not make bookings or translate complete sign-language conversations.
+> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. Its controlled hotel access agent asks the signer to confirm the result and complete request before speech or action. It creates a persistent staff task, shows the task lifecycle, asks the guest to verify the result and can optionally notify one configured staff webhook. It does not make reservations, issue room keys or translate complete sign-language conversations.
 
 ### Suggested demonstration
 
@@ -615,7 +615,7 @@ Use this wording:
 2. Open **SignBridge agent** and explicitly choose ASL or Emirati Sign Language.
 3. Record one validated sign and show that SignBridge waits for confirmation.
 4. Choose the exact request, confirm the sentence and let SignBridge speak it.
-5. Open **Staff desk**, accept the task, type a staff reply and record the honest outcome.
+5. Open **Staff desk**, accept the task, type a staff reply and mark the service delivered. Return to the agent and record the guest's honest resolved/not-resolved answer.
 6. Continue with an `Again` or `Repeat` turn, then end and clear the signer session.
 7. Show an unsupported movement producing “Not sure” without advancing, speaking or acting.
 8. Briefly show the Final test report and explain that new people were kept out of training.
@@ -638,7 +638,7 @@ It follows a controlled loop: observe a supported sign, ask for confirmation, ch
 
 ### What actions can it perform now?
 
-It can start a session, create persistent local tasks for directions, appointment help, interpreter help, general help or water help, show a waiting state, and recover an earlier staff reply after an `Again` or `Repeat` request. Staff can manage the queue inside SignBridge. An administrator may connect one tested staff-notification webhook. It still cannot change bookings or request an interpreter from an outside service.
+It can start a session, create persistent local tasks for hotel check-in help, room/hotel service, interpreter help and the broader prototype's general assistance actions, show a waiting state, and recover an earlier staff reply after an `Again` or `Repeat` request. Staff can manage the queue inside SignBridge. The hotel pilot visibly tracks the task and asks the guest to verify the result. An administrator may connect one tested staff-notification webhook. It still cannot change reservations, issue room keys, process payment or request an interpreter from an outside service.
 
 ### Does it work offline?
 

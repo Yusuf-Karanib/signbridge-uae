@@ -12,11 +12,12 @@ The full current control instructions are in `docs/CONTROL_GUIDE.md`.
 8. Train each language model.
 9. Open **SignBridge agent**, choose the language and press **Record a request sign**.
 10. Confirm the sign, choose the exact request and confirm the full sentence before speech.
-11. Open **Staff desk**, accept the new task, save a reply and record **Complete successfully**, **Mark wrong action** or **Cancel selected** honestly.
-12. A task is local unless an administrator configured and enabled the webhook. Even then, delivery does not prove a staff member read it.
-13. Press **Continue with another sign** to keep the conversation memory, or **End and clear signer session** when finished. Ending the signer session does not silently mark the staff task successful.
-14. Use **Final test** with at least one completely new person; two or three is better.
-15. Press **Competition demo** for the focused visitor-and-staff presentation. This mode allows only `Help`, then directions, appointment help or interpreter request. Export the aggregate evidence report from **Staff desk** after real trials.
+11. Open **Staff desk**, accept the new task, save a reply and choose **Mark service delivered**, **Mark wrong action** or **Cancel selected** honestly.
+12. Return to **SignBridge agent**. The guest confirms **resolved** or **still need help**. Only the guest's resolved confirmation counts as success.
+13. A task is local unless an administrator configured and enabled the webhook. Even then, delivery does not prove a staff member read it.
+14. Press **Continue with another sign** to keep the conversation memory, or **End and clear signer session** when finished. Ending the signer session does not silently mark the staff task successful.
+15. Use **Final test** with at least one completely new person; two or three is better.
+16. Press **Competition demo** for the focused guest-and-staff hotel presentation. This mode allows only `Help`, then check-in assistance, room/hotel service or interpreter request. Export the aggregate evidence report from **Staff desk** after real trials.
 
 The clean sharing ZIP intentionally contains no participant data or personal trained model. On another computer, run setup and train or import consented landmark samples before expecting camera recognition.
 

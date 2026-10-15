@@ -2,12 +2,12 @@
 
 Public repository: [github.com/Yusuf-Karanib/signbridge-uae](https://github.com/Yusuf-Karanib/signbridge-uae)
 
-SignBridge is a local webcam prototype configured for **8 candidate isolated signs** plus a confirmation-first reception workflow:
+SignBridge is a local webcam prototype configured for **8 candidate isolated signs** plus a confirmation-first hotel-service workflow:
 
 - 4 American Sign Language signs with English text and speech.
 - 4 Emirati Sign Language signs with Arabic text and speech.
 
-It is designed to recognize one prompted sign at a time after local training. The current saved ASL model is personalized and unvalidated, and no Emirati model exists yet. The **SignBridge agent** turns a confirmed sign into one clear reception-desk request, runs a matching safe local action, remembers staff replies between turns, and clears the temporary session when finished. It is not a full sign-language translator.
+It is designed to recognize one prompted sign at a time after local training. The current saved ASL model is personalized and unvalidated, and no Emirati model exists yet. The **SignBridge Access Agent hotel pilot** turns a confirmed sign into one supported hotel request, creates and tracks a safe staff task, shows its progress, asks the guest whether the request was resolved, and clears the temporary session when finished. It is not a full sign-language translator.
 
 For a complete beginner-friendly explanation of the idea, design, screens, training,
 testing, files and event demonstration, read `docs/FULL_BEGINNER_GUIDE.md`.
@@ -26,9 +26,9 @@ For the bounded championship scope and demonstration, read
 6. Press **Train or update this language model**.
 7. Open **SignBridge agent** and record one sign.
 8. Confirm the camera suggestion, choose the exact request, and confirm the full sentence.
-9. Open **Staff desk** to accept the saved task, type a reply and complete it. You can optionally connect a tested HTTPS Slack/Teams-compatible webhook.
+9. Open **Staff desk** to accept the saved task, type a reply and mark the service delivered. The guest then confirms whether it was resolved. You can optionally connect a tested HTTPS Slack/Teams-compatible webhook.
 10. Use **Final test** with people who were never used for training.
-11. For a focused presentation, press **Competition demo**. It shows only the visitor agent and Staff desk and permits only `Help` followed by directions, appointment help or an interpreter request.
+11. For a focused presentation, press **Competition demo**. It shows only the guest agent and Staff desk and permits only `Help` followed by hotel check-in assistance, a room/hotel service request or an interpreter request.
 
 The camera panel shows live FPS. If the default webcam is wrong or busy, choose
 camera 1 or 2 and press **Restart**; saved samples and models are unaffected.
@@ -60,10 +60,10 @@ The exact checklist is in `docs/TEST_PLAN.md`.
 5. A separate classifier is trained for each sign language.
 6. Low-confidence results are rejected instead of guessed.
 7. The SignBridge agent requires confirmation of both the sign and the complete request before speech or action.
-8. A small rule-based action engine creates persistent local reception tasks and can use an earlier staff reply during the same session.
-9. The Staff desk records successful, wrong-action and cancelled outcomes. An optional webhook can notify a real staff channel only after it is explicitly configured and enabled.
+8. A small rule-based action engine creates persistent local hotel tasks and can use an earlier staff reply during the same session.
+9. The Staff desk records delivery, wrong-action and cancelled outcomes. A request counts as successful only after the guest confirms it was resolved. An optional webhook can notify a real staff channel only after it is explicitly configured and enabled.
 10. Ending the signer session clears temporary conversation text. The staff task remains until staff records its real outcome.
-11. A privacy-safe evidence report measures task completion, false actions, corrections and staff completion time without exporting replies or participant IDs.
+11. A privacy-safe evidence report measures task completion, guest resolution, false actions, corrections and staff completion time without exporting replies or participant IDs.
 
 Speech is manual by default so a wrong result is not spoken automatically. Automatic speech can be enabled for a controlled demo.
 

@@ -27,7 +27,7 @@ class ConversationTurn:
 
 
 COMPETITION_ACTION_IDS = frozenset(
-    {"directions", "appointment", "interpreter"}
+    {"hotel_check_in", "hotel_service", "interpreter"}
 )
 
 
@@ -37,8 +37,16 @@ REQUEST_OPTIONS: dict[str, dict[str, tuple[RequestOption, ...]]] = {
             RequestOption("start", "Start assistance", "Hello. I need assistance."),
         ),
         "help": (
-            RequestOption("directions", "Directions", "I need help with directions."),
-            RequestOption("appointment", "Appointment", "I need help with an appointment."),
+            RequestOption(
+                "hotel_check_in",
+                "Hotel check-in assistance",
+                "I need help checking in at the hotel.",
+            ),
+            RequestOption(
+                "hotel_service",
+                "Room or hotel service",
+                "I need help with a room or hotel service request.",
+            ),
             RequestOption(
                 "interpreter",
                 "Sign-language interpreter",
@@ -65,8 +73,16 @@ REQUEST_OPTIONS: dict[str, dict[str, tuple[RequestOption, ...]]] = {
             RequestOption("find_water", "أين الماء؟", "أين يمكنني الحصول على ماء للشرب؟"),
         ),
         "help": (
-            RequestOption("directions", "الاتجاهات", "أحتاج إلى مساعدة في معرفة الاتجاهات."),
-            RequestOption("appointment", "موعد", "أحتاج إلى مساعدة بخصوص موعد."),
+            RequestOption(
+                "hotel_check_in",
+                "المساعدة في تسجيل الوصول",
+                "أحتاج إلى مساعدة في تسجيل الوصول إلى الفندق.",
+            ),
+            RequestOption(
+                "hotel_service",
+                "خدمة الفندق أو الغرفة",
+                "أحتاج إلى مساعدة في طلب خدمة للفندق أو الغرفة.",
+            ),
             RequestOption(
                 "interpreter",
                 "مترجم لغة إشارة",

@@ -50,7 +50,7 @@ class ControlUiTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_open_palm_arms_then_stable_gesture_controls_and_tab_exit_stops(self) -> None:
-        window = MainWindow()
+        window = MainWindow(auto_start_camera=False)
         controller = FakeController()
         window.computer_controller = controller
         window.camera_ok = True
@@ -85,7 +85,7 @@ class ControlUiTests(unittest.TestCase):
         window.close()
 
     def test_mouse_requires_pointing_and_moves_relative_to_current_pointer(self) -> None:
-        window = MainWindow()
+        window = MainWindow(auto_start_camera=False)
         controller = FakeController()
         window.computer_controller = controller
         hand = np.zeros((21, 3), dtype=np.float32)
@@ -143,7 +143,7 @@ class ControlUiTests(unittest.TestCase):
         window.close()
 
     def test_low_camera_quality_is_clearly_marked(self) -> None:
-        window = MainWindow()
+        window = MainWindow(auto_start_camera=False)
 
         window._on_camera_performance(
             "Camera 0 • 160×120 • 10 preview FPS • LOW CAMERA QUALITY: test"

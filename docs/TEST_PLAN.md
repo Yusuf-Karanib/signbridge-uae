@@ -42,7 +42,10 @@ Accuracy should not fall by more than 10 percentage points between conditions.
 - A wrong or rejected camera result must create zero tasks and zero notifications.
 - Each confirmed help request must create exactly one task.
 - Close and reopen the app; unfinished tasks must still appear in **Staff desk**.
-- Staff can accept and reply, then honestly label each task successful, wrong or cancelled without technical help.
+- After staff marks a hotel service delivered, the guest must be asked whether it was resolved.
+- A **resolved** answer must count as guest-confirmed success. **Still need help** must reopen the task instead of counting success.
+- Verify that the visible agent progress matches task creation, notification, staff status and guest verification.
+- Staff can accept and reply, then honestly mark each task delivered, wrong or cancelled without technical help.
 - Record corrections, duplicate tasks, missed tasks and end-to-end completion time.
 - If a webhook is enabled, test its safe test message first. Record every failed delivery and keep the local Staff desk as the fallback.
 - A “Sent” webhook status means the endpoint accepted the message, not that a human read it.

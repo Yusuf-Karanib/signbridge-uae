@@ -35,6 +35,12 @@ class TaskOutcome(str, Enum):
     CANCELLED = "cancelled"
 
 
+class VisitorOutcome(str, Enum):
+    NOT_RECORDED = "not_recorded"
+    RESOLVED = "resolved"
+    NEEDS_HELP = "needs_help"
+
+
 @dataclass(frozen=True)
 class ReceptionTask:
     id: str
@@ -53,10 +59,12 @@ class ReceptionTask:
     correction_used: bool = False
     confidence: float | None = None
     outcome: TaskOutcome = TaskOutcome.UNREVIEWED
+    visitor_outcome: VisitorOutcome = VisitorOutcome.NOT_RECORDED
+    visitor_confirmed_at: str | None = None
 
 
 class TaskStore:
-    """Stores the reception queue locally without saving sign video."""
+    """Stores the service queue locally without saving sign video."""
 
     def __init__(self, path: Path | None = AGENT_TASKS_PATH) -> None:
         self.path = Path(path) if path is not None else None
@@ -111,12 +119,26 @@ class TaskStore:
         task = self._required(task_id)
         now = datetime.now(timezone.utc).isoformat()
         completed_at = now if status == TaskStatus.COMPLETED else None
+        awaiting_new_guest_check = (
+            status == TaskStatus.COMPLETED
+            and task.visitor_outcome == VisitorOutcome.NEEDS_HELP
+        )
         updated = ReceptionTask(
             **{
                 **asdict(task),
                 "status": status,
                 "updated_at": now,
                 "completed_at": completed_at,
+                "visitor_outcome": (
+                    VisitorOutcome.NOT_RECORDED
+                    if awaiting_new_guest_check
+                    else task.visitor_outcome
+                ),
+                "visitor_confirmed_at": (
+                    None
+                    if awaiting_new_guest_check
+                    else task.visitor_confirmed_at
+                ),
             }
         )
         self._tasks[task.id] = updated
@@ -178,6 +200,37 @@ class TaskStore:
         self._save()
         return updated
 
+    def mark_visitor_outcome(
+        self, task_id: str, visitor_outcome: VisitorOutcome
+    ) -> ReceptionTask:
+        if visitor_outcome == VisitorOutcome.NOT_RECORDED:
+            raise ValueError("Choose whether the visitor's request was resolved")
+        task = self._required(task_id)
+        if task.status != TaskStatus.COMPLETED:
+            raise ValueError(
+                "Hotel staff must mark the service as delivered before the guest confirms the outcome"
+            )
+        if task.outcome in (TaskOutcome.WRONG_ACTION, TaskOutcome.CANCELLED):
+            raise ValueError(
+                "A wrong or cancelled task cannot be confirmed as a delivered service"
+            )
+        now = datetime.now(timezone.utc).isoformat()
+        resolved = visitor_outcome == VisitorOutcome.RESOLVED
+        updated = ReceptionTask(
+            **{
+                **asdict(task),
+                "status": TaskStatus.COMPLETED if resolved else TaskStatus.ACCEPTED,
+                "outcome": TaskOutcome.SUCCESS if resolved else TaskOutcome.UNREVIEWED,
+                "updated_at": now,
+                "completed_at": (task.completed_at or now) if resolved else None,
+                "visitor_outcome": visitor_outcome,
+                "visitor_confirmed_at": now,
+            }
+        )
+        self._tasks[task.id] = updated
+        self._save()
+        return updated
+
     def clear_all(self) -> int:
         self._raise_if_unreadable()
         count = len(self._tasks)
@@ -192,6 +245,17 @@ class TaskStore:
         successful = [task for task in tasks if task.outcome == TaskOutcome.SUCCESS]
         wrong = [task for task in tasks if task.outcome == TaskOutcome.WRONG_ACTION]
         cancelled = [task for task in tasks if task.outcome == TaskOutcome.CANCELLED]
+        visitor_reviewed = [
+            task
+            for task in tasks
+            if task.visitor_outcome != VisitorOutcome.NOT_RECORDED
+        ]
+        visitor_resolved = [
+            task for task in tasks if task.visitor_outcome == VisitorOutcome.RESOLVED
+        ]
+        visitor_needs_help = [
+            task for task in tasks if task.visitor_outcome == VisitorOutcome.NEEDS_HELP
+        ]
         judged_actions = successful + wrong
         completion_seconds: list[float] = []
         for task in completed:
@@ -212,6 +276,9 @@ class TaskStore:
             "successful": len(successful),
             "wrong_action": len(wrong),
             "cancelled": len(cancelled),
+            "visitor_confirmed": len(visitor_reviewed),
+            "visitor_resolved": len(visitor_resolved),
+            "visitor_needs_help": len(visitor_needs_help),
             "corrections": sum(task.correction_used for task in tasks),
             "sent": sum(
                 task.delivery_status == DeliveryStatus.SENT for task in tasks
@@ -238,6 +305,11 @@ class TaskStore:
                 if tasks
                 else None
             ),
+            "visitor_resolution_rate": (
+                len(visitor_resolved) / len(visitor_reviewed)
+                if visitor_reviewed
+                else None
+            ),
         }
 
     def write_evidence_report(self, path: Path) -> Path:
@@ -246,7 +318,7 @@ class TaskStore:
         destination.parent.mkdir(parents=True, exist_ok=True)
         tasks = list(self._tasks.values())
         payload = {
-            "version": 1,
+            "version": 2,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "privacy_note": (
                 "This aggregate report excludes staff replies, webhook URLs, "
@@ -321,6 +393,14 @@ class TaskStore:
                     outcome=TaskOutcome(
                         item.get("outcome", TaskOutcome.UNREVIEWED)
                     ),
+                    visitor_outcome=VisitorOutcome(
+                        item.get("visitor_outcome", VisitorOutcome.NOT_RECORDED)
+                    ),
+                    visitor_confirmed_at=(
+                        str(item["visitor_confirmed_at"])
+                        if item.get("visitor_confirmed_at")
+                        else None
+                    ),
                 )
                 for item in tasks
             }
@@ -336,7 +416,7 @@ class TaskStore:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 1,
+            "version": 2,
             "tasks": [asdict(task) for task in self.list_tasks()],
         }
         temporary = self.path.with_suffix(".tmp")

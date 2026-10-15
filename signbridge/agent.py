@@ -30,6 +30,8 @@ ACTION_IDS = frozenset(
         "start",
         "directions",
         "appointment",
+        "hotel_check_in",
+        "hotel_service",
         "interpreter",
         "other",
         "request_water",
@@ -55,6 +57,14 @@ _ACTION_TEXT = {
         "appointment": (
             "Appointment task",
             "A local appointment-help task was created. No booking system was contacted.",
+        ),
+        "hotel_check_in": (
+            "Hotel check-in assistance",
+            "A local hotel check-in assistance task was created. No reservation, identity or room-key system was contacted.",
+        ),
+        "hotel_service": (
+            "Hotel service request",
+            "A local hotel service task was created. Staff must confirm the room and service details before acting.",
         ),
         "interpreter": (
             "Interpreter task",
@@ -102,6 +112,14 @@ _ACTION_TEXT = {
             "مهمة الموعد",
             "تم إنشاء مهمة محلية للمساعدة في الموعد. لم يتم الاتصال بأي نظام حجز.",
         ),
+        "hotel_check_in": (
+            "مساعدة تسجيل الوصول إلى الفندق",
+            "تم إنشاء مهمة محلية للمساعدة في تسجيل الوصول. لم يتم الاتصال بنظام الحجز أو الهوية أو مفتاح الغرفة.",
+        ),
+        "hotel_service": (
+            "طلب خدمة فندقية",
+            "تم إنشاء مهمة خدمة فندقية محلية. يجب على الموظف تأكيد الغرفة وتفاصيل الخدمة قبل التنفيذ.",
+        ),
         "interpreter": (
             "مهمة مترجم لغة الإشارة",
             "تم إنشاء مهمة محلية لطلب مترجم لغة إشارة. لم يتم الاتصال بخدمة مترجم.",
@@ -139,17 +157,19 @@ _ACTION_TEXT = {
 
 
 class ReceptionAgent:
-    """Runs a small, explicit set of safe reception actions.
+    """Runs a small, explicit set of safe service-desk actions.
 
     It creates persistent local staff tasks. The UI may separately send a task
     notification through an explicitly configured webhook, but this engine does
-    not change bookings or contact interpreter services.
+    not change reservations, issue room keys or contact interpreter services.
     """
 
     _LOCAL_TASK_ACTIONS = frozenset(
         {
             "directions",
             "appointment",
+            "hotel_check_in",
+            "hotel_service",
             "interpreter",
             "other",
             "request_water",

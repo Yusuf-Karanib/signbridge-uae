@@ -16,7 +16,7 @@ class ReceptionAgentTests(unittest.TestCase):
             for option in sign_options
         }
 
-        self.assertEqual(request_ids, set(ACTION_IDS))
+        self.assertTrue(request_ids.issubset(ACTION_IDS))
 
     def test_local_task_is_honest_and_can_be_completed(self) -> None:
         agent = ReceptionAgent(TaskStore.in_memory())
@@ -35,6 +35,19 @@ class ReceptionAgentTests(unittest.TestCase):
         self.assertIn("SB-001", agent.pending_tasks)
         self.assertEqual(agent.complete_tasks(["SB-001"]), 1)
         self.assertEqual(agent.pending_tasks, {})
+
+    def test_hotel_check_in_does_not_claim_to_contact_a_reservation_system(self) -> None:
+        agent = ReceptionAgent(TaskStore.in_memory())
+        option = RequestOption(
+            id="hotel_check_in",
+            button_text="Hotel check-in assistance",
+            request_text="I need help checking in at the hotel.",
+        )
+
+        result = agent.execute(option, language="asl", conversation=())
+
+        self.assertEqual(result.status, AgentActionStatus.LOCAL_TASK)
+        self.assertIn("No reservation, identity or room-key system was contacted", result.message)
 
     def test_repeat_action_uses_the_previous_staff_reply(self) -> None:
         agent = ReceptionAgent(TaskStore.in_memory())

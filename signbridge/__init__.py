@@ -1,4 +1,4 @@
-"""SignBridge UAE: isolated-sign recognition with a controlled reception agent."""
+"""SignBridge UAE: isolated-sign recognition with a controlled access agent."""
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 

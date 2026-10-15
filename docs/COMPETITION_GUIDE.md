@@ -1,14 +1,14 @@
 # Create AI Agents Championship guide
 
-## Rechecked verdict — 14 October 2026
+## Rechecked verdict — 15 October 2026
 
-Keep the project, category and narrow reception-desk problem. Do not present the current build as a validated bilingual MVP yet.
+Keep the project and category, but focus the competition demo on a hotel reception where no accessible self-service option is assumed. Do not present the current build as a validated bilingual MVP yet.
 
 - Recommended category: **Best Societal AI Agent**.
-- Working name: **SignBridge Desk Assistant**.
+- Working name: **SignBridge Access Agent — Hotel Pilot**.
 - Honest current stage: **Prototyping**.
 - Hero outcome: request a human sign-language interpreter.
-- Secondary outcomes: ask for directions or appointment help.
+- Secondary outcomes: ask for hotel check-in assistance or room/hotel service help.
 - The competition demo now exposes only the `Help` sign and those three goals.
 
 Official pages checked on 14 October 2026:
@@ -22,18 +22,19 @@ The current terms say entry is open globally, teams may have up to six people, s
 
 ## Important eligibility question
 
-The overview allows a new AI-agent capability from an existing project, while the terms also say the submitted agent has not been used before. SignBridge's earlier detector was publicly demonstrated and the repository is public; the Desk Assistant capability was added after the competition launched.
+The overview allows a new AI-agent capability from an existing project, while the terms also say the submitted agent has not been used before. SignBridge's earlier detector was publicly demonstrated and the repository is public; the Access Agent capability was added after the competition launched.
 
-Ask the organizer in writing whether adapting this non-commercial detector into the new Desk Assistant agent is eligible. Keep the answer. Do not hide the earlier prototype or claim it was never shown.
+Ask the organizer in writing whether adapting this non-commercial detector into the new Access Agent is eligible. Keep the answer. Do not hide the earlier prototype or claim it was never shown.
 
 ## What genuinely exists now
 
 - A working desktop application and camera pipeline.
 - Eight configured candidate signs: four ASL and four Emirati Sign Language signs.
 - Confidence rejection and confirmation before any action.
-- Persistent staff tasks, replies, outcomes and an optional webhook.
+- Persistent hotel-staff tasks, replies, guest-confirmed outcomes and an optional webhook.
+- A visible goal, task, notification, staff, guest-verification and session-clear progress trail.
 - Aggregate evidence export and local deletion controls.
-- Fifty automated tests pass after the review fixes.
+- Fifty-three automated tests pass after the hotel-pilot and guest-verification changes.
 
 Recognition is not ready for a competition claim:
 
@@ -45,7 +46,7 @@ Recognition is not ready for a competition claim:
 
 ## Smallest strong product
 
-A Deaf or hard-of-hearing visitor uses one externally validated `Help` sign, confirms the result, then chooses one supported service goal. SignBridge safely completes the desk workflow instead of pretending to translate a full language.
+A Deaf or hard-of-hearing hotel guest uses one externally validated `Help` sign, confirms the result, then chooses one supported hotel-service goal. SignBridge coordinates the task instead of pretending to translate a full language.
 
 The competition story must show this full agent loop:
 
@@ -56,7 +57,7 @@ The competition story must show this full agent loop:
 5. Return the staff reply to the visitor.
 6. Ask whether the problem was solved, record the honest outcome and stop.
 
-The current build handles the queue and reply, but its planning is still mostly fixed routing. A visible goal/plan/tool/status trace is the next necessary product feature. An LLM is not required.
+The current build now shows this fixed, bounded lifecycle and records the guest's final answer. It remains deterministic routing rather than open-ended reasoning; an LLM is not required.
 
 ## Evidence required
 
@@ -66,10 +67,10 @@ The current build handles the queue and reply, but its planning is still mostly 
 - Zero action from an unconfirmed sign.
 - Visitor-confirmed task completion and false-action rate.
 - Time from the first attempt to the final outcome, plus staff handling time.
-- At least 20 complete desk trials.
+- At least 20 complete hotel-service trials.
 - Feedback from Deaf or UAE sign-language users, not only hearing developers.
 
-The current task report covers created tasks and staff completion time. Attempt-level evidence, visitor confirmation and full-workflow timing still need to be added.
+The current task report covers created tasks, staff completion time and guest-confirmed outcomes. Attempt-level evidence and full first-attempt-to-outcome timing still need to be added.
 
 ## Privacy rules
 
@@ -82,13 +83,12 @@ The current task report covers created tasks and staff completion time. Attempt-
 ## Exact priority
 
 1. On 19 October, enter Howspace, record the real deadline and ask the prior-prototype eligibility question.
-2. Build the visible goal-plan-tool-wait-verify-stop lifecycle.
-3. Add attempt-level evidence, visitor outcome confirmation and full-workflow timing.
-4. Add short-video import to **Final test** so remote unseen users can participate without their clips entering training.
-5. Obtain fluent-signer and Deaf-user validation.
-6. Train and pass unseen-person tests for one language first. Treat Emirati as the UAE priority; add ASL to the pitch only if it also passes.
-7. Test one real staff endpoint and run 20 complete desk trials.
-8. Only then produce the summary report, pitch deck and demo video.
+2. Add attempt-level evidence and full-workflow timing.
+3. Add short-video import to **Final test** so remote unseen users can participate without their clips entering training.
+4. Obtain fluent-signer and Deaf-user validation.
+5. Train and pass unseen-person tests for one language first. Treat Emirati as the UAE priority; add ASL to the pitch only if it also passes.
+6. Test one real hotel-staff endpoint and run 20 complete hotel-service trials.
+7. Only then produce the summary report, pitch deck and demo video.
 
 ## Do not build or claim now
 
@@ -97,4 +97,4 @@ The current task report covers created tasks and staff completion time. Attempt-
 - No universal “Arabic Sign Language” claim.
 - No larger vocabulary, chatbot, meeting integration, arbitrary-video translation or computer control in the competition pitch.
 - No accuracy claim based on Yusuf or training data.
-- No “check-in completed” claim; the current action creates appointment help only.
+- No “check-in completed” claim; the current action creates a hotel check-in assistance task and does not contact reservations, identity checks or room-key systems.
