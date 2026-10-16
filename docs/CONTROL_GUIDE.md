@@ -49,7 +49,7 @@ Restart Windows after a driver update, then open SignBridge. A successful fix wi
 
 ## 4. Use the SignBridge agent
 
-1. Open **SignBridge agent** and choose ASL or Emirati Sign Language.
+1. Open **SignBridge agent**. The current phase is fixed to ASL with English output.
 2. Press **Record a request sign**, wait for the countdown and perform one supported sign.
 3. Confirm the camera suggestion. If it is wrong or says **Not sure**, retry or use **Correction fallback**.
 4. Choose the exact request.
@@ -66,13 +66,15 @@ SignBridge will not speak or run an action until the sign and complete request h
 
 ## 5. Recognize a sign
 
-The **Recognize**, **Train model** and **Final test** tabs are for the 8-sign candidate vocabulary. Choose ASL or Emirati Sign Language, press the recording button, wait for the countdown and perform one sign while the bar fills. Training requires the consent box. **Import short video** can use one consented 2–5 second clip containing exactly the selected sign.
+The **Recognize**, **Train model** and **Final test** tabs currently use four ASL candidates: `Hello`, `Help`, `Water` and `Again`. Press the recording button, wait for the countdown and perform one sign while the bar fills. Training your own or a remote person's clip requires consent. **Import short video** accepts one consented 2–5 second clip containing exactly the selected sign.
+
+**Import a PopSign training folder** can add up to 30 licensed, varied training clips for `Hello`, `Help` or `Water`. It accepts only the official `game/train` split and keeps test data separate. See `ASL_DATASET_IMPORT.md`.
 
 This is separate from computer control.
 
 ## 6. Turn computer control on
 
-The control gestures are generic shortcuts. They are not ASL or Emirati signs.
+The control gestures are generic shortcuts. They are not ASL signs.
 
 1. Open **Computer control**.
 2. Choose a mode.

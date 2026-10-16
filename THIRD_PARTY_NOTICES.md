@@ -15,3 +15,12 @@ Reference websites are linked for vocabulary review. Their videos and datasets a
 - ASL Signbank content: CC BY-NC-SA 4.0.
 - UAE Sign Language Dictionary: official reference; no open training-data licence is assumed.
 
+## Optional PopSign ASL training data
+
+SignBridge can extract landmarks from original PopSign ASL v2.1 training clips selected by the user. The dataset is not included in this repository or its ZIP package.
+
+- Publisher: Georgia Institute of Technology and Deaf Professional Arts Network
+- Dataset: https://signdata.cc.gatech.edu/view/datasets/popsign_v2_1/index.html
+- Licence: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- Licence text: https://creativecommons.org/licenses/by/4.0/
+

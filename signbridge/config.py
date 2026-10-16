@@ -10,6 +10,10 @@ HOLISTIC_MODEL_PATH = MODEL_ASSETS_DIR / "holistic_landmarker.task"
 GESTURE_MODEL_PATH = MODEL_ASSETS_DIR / "gesture_recognizer.task"
 VOCABULARY_PATH = PROJECT_ROOT / "config" / "vocabulary.json"
 
+# The Emirati vocabulary remains in vocabulary.json so it can be resumed later.
+# Only ASL is exposed in the app during the current evidence-building phase.
+ACTIVE_LANGUAGE_IDS = ("asl",)
+
 DATA_DIR = PROJECT_ROOT / "data"
 SAMPLES_DIR = DATA_DIR / "samples"
 TRASH_DIR = DATA_DIR / "trash"

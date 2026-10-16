@@ -6,9 +6,9 @@ For a short operating manual for the latest camera and computer controls, read `
 
 ## Read these three parts first
 
-1. **What exists now:** the application, improved hand tracking, consented live and short-video training, testing, text, speech, a controlled hotel-service workflow, a visible agent progress trail, guest outcome confirmation, a persistent Staff desk, a focused competition-demo view, aggregate evidence export, participant deletion, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists but is unreliable and unvalidated. No Emirati model exists yet.
-2. **What must happen next:** fluent signers must validate the 8 sign forms, more real people must record examples, the Emirati model must be trained, the ASL model must be strengthened, and completely new people must test both models.
-3. **What it is:** a prototype configured for 4 ASL signs and 4 Emirati signs during a short prompted recording. Those two modes are not yet validated working recognizers. The SignBridge workflow can turn confirmed results into predefined hotel-service requests, run safe local actions, track staff progress and remember a short session. It is not a full sign-language or sentence translator.
+1. **What exists now:** the application, improved hand tracking, consented live and short-video training, optional licensed PopSign training-folder import, testing, English text and speech, a controlled hotel-service workflow, a visible agent progress trail, guest outcome confirmation, a persistent Staff desk, a focused competition-demo view, aggregate evidence export, participant deletion, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists but is unreliable and unvalidated.
+2. **What must happen next:** a fluent ASL signer must validate the 4 active sign forms, the ASL model needs varied correctly labelled examples, and completely new people must test it. Emirati work is paused until this ASL phase receives useful feedback.
+3. **What it is:** an ASL-first prototype configured for 4 isolated signs during a short prompted recording. The SignBridge workflow can turn confirmed results into predefined hotel-service requests, run safe local actions, track staff progress and remember a short session. It is not a full sign-language or sentence translator.
 
 The difference between **software working** and **recognition working** is important. The software opens and the camera tracks correctly. Recognition cannot work until suitable human examples are recorded and the models are trained.
 
@@ -23,7 +23,7 @@ The screenshot shows a healthy starting state:
 - **Sign forms reviewed: 0/4** means no fluent ASL signer has yet been recorded as approving the exact forms.
 - **No prediction yet** is expected because no usable model exists.
 
-That screenshot showed the earlier starting state. The project now contains a one-person ASL model, but it is still not validated for new people. The Emirati model is still untrained.
+That screenshot showed the earlier starting state. The project now contains a one-person ASL model, but it is still not validated for new people.
 
 The tracking points are not sign recognition. MediaPipe is a pretrained tracker that finds locations such as wrists, fingers, shoulders and elbows. SignBridge still needs a second, locally trained model to learn which movement belongs to each supported sign.
 
@@ -44,7 +44,7 @@ A language-specific model compares it with training examples
   ↓
 Confidence and safety checks accept it or say “Not sure”
   ↓
-Accepted result appears as English or Arabic text
+Accepted result appears as English text
   ↓
 The user can approve it and play speech
 ```
@@ -66,8 +66,8 @@ SignBridge keeps that workflow but does not copy the older object-detection desi
 | Only a laptop and webcam are available | Use normal RGB webcam video | No special gloves, depth camera or sensors are required |
 | Signs contain movement | Record a short sequence, not one photograph | A still image loses direction and motion |
 | Hands may move near the head or body | Track both hands and upper-body position | Hand shape alone is not always enough |
-| The event deadline is short | Start with 8 isolated signs | A small system can be trained and tested honestly |
-| ASL and Emirati Sign Language are different languages | Use separate vocabularies and separate models | A written meaning does not imply the same sign movement |
+| Reliable evidence is still missing | Start with 4 isolated ASL signs | One small system can be trained and tested honestly |
+| Emirati Sign Language is a separate language | Pause it until ASL feedback is useful | A written meaning does not imply the same sign movement |
 | Local data will be limited | Use a smaller classical classifier | A large LSTM or Transformer would be easier to overfit and harder to validate quickly |
 | Wrong speech could mislead people | Reject uncertain results and make speech manual by default | Silence is safer than confidently saying the wrong word |
 | Training accuracy can be misleading | Separate people by ID and add a final-test area | The model must be tested on people it never learned from |
@@ -79,7 +79,7 @@ Sign languages have their own grammar. Meaning can depend on two hands, movement
 
 ## 4. What the system is configured to recognize
 
-The user chooses the active language. The two languages are never treated as direct translations of each other.
+The current app phase is fixed to ASL with English output.
 
 ### ASL model with English output
 
@@ -88,14 +88,14 @@ The user chooses the active language. The two languages are never treated as dir
 - Water
 - Again
 
-### Emirati Sign Language model with Arabic output
+### Deferred Emirati phase
 
 - يشرب — Drink
 - يساعد — Help
 - انتظار — Wait
 - إعادة — Repeat
 
-These are candidate forms linked to sign references. A fluent signer or qualified interpreter must still check the exact movement before training or public use.
+The Emirati candidates remain saved for later; they are hidden from the current app. They require fluent Emirati review and properly licensed UAE data before being restored. ASL and Emirati signs must never be treated as direct movement-for-movement translations.
 
 ## 5. What happens to one camera frame
 
@@ -132,7 +132,7 @@ Final testing behaves differently: a poor attempt still counts. Silently discard
 
 ## 7. How the learning model works
 
-There is one model for ASL and a separate model for Emirati Sign Language. Each model learns five classes: four supported signs plus **OTHER / NO SIGN**.
+The active ASL model learns five classes: four supported signs plus **OTHER / NO SIGN**. A separate Emirati model may return in a later phase.
 
 The training pipeline has three stages:
 
@@ -160,7 +160,7 @@ A confidence score is not proof. It only describes how strongly this model prefe
 
 This is the first screen and the main product demonstration. It completes a small, controlled communication-and-action loop instead of stopping at a sign label.
 
-1. Choose ASL or Emirati Sign Language.
+1. ASL with English output is already selected.
 2. Press **Record a request sign** and perform one supported sign.
 3. Read the camera suggestion and press **Yes, this sign is correct** or **No, try again**.
 4. If the camera is unsure or wrong, use **Correction fallback** to select the intended supported sign manually. Manual selection still requires confirmation.
@@ -168,7 +168,7 @@ This is the first screen and the main product demonstration. It completes a smal
 6. Read the complete sentence and press **Confirm and show to staff**. Only this final confirmation allows speech and an action.
 7. Read the **Agent action** card. Some requests create a local task number such as `SB-001`.
 8. Staff can type a short reply for the signer to read.
-9. Press **Continue with another sign** to keep the conversation in memory. `Again` or `Repeat` can then show the earlier staff reply.
+9. Press **Continue with another sign** to keep the conversation in memory. `Again` can then show the earlier staff reply.
 10. Press **End and clear signer session**. The temporary conversation disappears and is not written to disk. The staff task remains until staff records its real outcome.
 
 The first version uses a small rule-based action engine, not a chatbot. That makes every possible action visible, predictable and testable. Task numbers are saved locally and remain after a restart. They do not change bookings or summon an interpreter. A real staff notification happens only if an administrator explicitly configures and enables the optional webhook.
@@ -193,7 +193,7 @@ This is the simple work queue for the person helping signers.
 
 This is the demonstration screen.
 
-- **Choose sign language:** selects the ASL or Emirati model.
+- **Sign language:** shows the current ASL → English phase. It is locked so the paused Emirati work cannot be mistaken for a working model.
 - **Model status:** shows whether a model exists and whether multi-person testing was possible.
 - **Supported signs:** shows the four possible results for the selected language.
 - **Record one sign:** starts the countdown and 1.8-second recording.
@@ -220,15 +220,16 @@ The history is not a translated sentence. It is simply a list of accepted isolat
 
 This is the data collection and model training screen.
 
-- Select the language.
+- ASL is already selected.
 - Enter one stable Person ID, such as `trainer-01`.
 - Select the sign to record.
 - Open the exact reference link.
 - Enter the fluent signer's or interpreter's name after review.
 - Mark the selected form reviewed.
 - Check the consent confirmation, then record training attempts live or press **Import short video** for one consented 2–5 second clip containing exactly the selected sign. New sample metadata records that consent was confirmed.
+- Optionally press **Import a PopSign training folder** to add up to 30 original licensed `game/train` clips for `Hello`, `Help` or `Water`. It does not cover `Again` or `OTHER / NO SIGN`. Read `ASL_DATASET_IMPORT.md` first.
 - Use **Remove last sample** when the latest recording was clearly wrong. It is moved to a recoverable trash folder.
-- Train or update the selected language model after enough data is collected.
+- Train or update the ASL model after enough data is collected.
 - To honour a withdrawal, enter the participant's Person ID in the privacy section. Readable matching training and final-test records are permanently deleted, every trained language model is removed for safe retraining, and any unreadable file is reported for manual review.
 
 The sample count shows a practical target of 30 for each class. Five examples per class is the technical minimum for checking whether the software pipeline can train, so you can start testing before reaching 30. A small dataset is not enough for a general accuracy claim.
@@ -239,7 +240,7 @@ Adding or removing samples does not change an existing model automatically. Pres
 
 This screen measures the trained model on completely new people.
 
-- Select the language.
+- ASL is already selected.
 - Enter a Tester ID, such as `final-01`.
 - Select what the tester is expected to perform.
 - Select the lighting or background condition.
@@ -297,15 +298,15 @@ After setup, recognition runs locally. Internet is still needed to open external
 
 Do this before collecting a large dataset.
 
-For each of the 8 signs:
+For each of the 4 active ASL signs:
 
 1. Open its exact reference link from the training screen.
-2. Ask a fluent signer or qualified interpreter for the relevant language to check it.
+2. Ask a fluent ASL signer or qualified interpreter to check it.
 3. Confirm hand shape, palm direction, location, movement, two-handed coordination and any facial/body information.
 4. Confirm that the variant is appropriate for the intended community.
 5. Enter the reviewer's name and mark the form reviewed.
 
-ASL review does not validate Emirati Sign Language, and general Arabic Sign Language does not automatically validate an Emirati variant.
+If the Emirati phase restarts later, it needs its own qualified local review. ASL review cannot validate an Emirati sign.
 
 The software records that a review was claimed; it cannot verify the reviewer's qualification.
 
@@ -329,7 +330,7 @@ Use the plan that is honest for the people available:
   per class, then one or more completely different final testers. More people
   are still better when available.
 
-If time is short, fewer well-tested signs are better than 8 weak signs.
+If time is short, fewer well-tested signs are better than 4 weak signs.
 
 Under the multi-person plans, each person should record:
 
@@ -409,7 +410,7 @@ The internal unseen-person score is helpful but is not the final event test. Tho
 ## 13. How to use the trained recognizer
 
 1. Open **Recognize**.
-2. Select ASL or Emirati Sign Language.
+2. Confirm that the fixed mode says **ASL → English**.
 3. Check that the screen says a model is trained.
 4. Frame the upper body and hands clearly.
 5. Press **Record one sign**.
@@ -431,7 +432,7 @@ Use **SignBridge agent** for a short hotel-service interaction. An accepted came
 
 Use at least two completely new people, preferably three.
 
-For each language and each final tester:
+For ASL and each final tester:
 
 1. Record every supported sign 10 times.
 2. Record at least 20 unsupported movements.
@@ -460,11 +461,11 @@ If one sign repeatedly fails, do not hide the result. Collect better validated d
 
 ## 15. Text and speech behaviour
 
-Accepted predictions become English or Arabic text. Speech uses Qt's connection to the voices installed in Windows.
+Accepted predictions become English text. Speech uses Qt's connection to the voices installed in Windows.
 
 Speech is manual by default. This allows the user to check the text before the computer says it aloud. Automatic speech can be enabled only after accuracy is acceptable in a controlled demonstration.
 
-Arabic text can appear even when Arabic speech is unavailable. If Windows has no compatible Arabic voice, the app reports that no voice is installed.
+Arabic output is not part of the current phase.
 
 The system must not be presented as medical, emergency or accessibility equipment.
 
@@ -499,6 +500,7 @@ Landmarks are less revealing than video but should still be treated as potential
 | `signbridge/classifier.py` | Trains, evaluates, saves, loads and runs the classifiers |
 | `signbridge/dataset.py` | Saves and loads training landmark samples |
 | `signbridge/video_import.py` | Extracts landmarks from one short training clip without copying the raw video |
+| `signbridge/popsign_import.py` | Safely discovers licensed PopSign ASL training clips without mixing validation or test data |
 | `signbridge/tasks.py` | Saves and measures the local staff task queue |
 | `signbridge/integrations.py` | Validates settings and sends optional staff webhook notifications |
 | `signbridge/validation.py` | Stores fluent-signer review records |
@@ -547,11 +549,10 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 
 ### Still unproven
 
-- Whether all 8 performed sign forms are correct.
+- Whether all 4 active ASL sign forms are correct.
 - Real accuracy for any sign.
 - Reliability across unseen people.
 - Robustness at the event location.
-- Arabic voice availability on another computer.
 - Safety for accessibility, medical or emergency use.
 
 Automated software tests cannot replace human language validation and real recognition tests.
@@ -560,7 +561,7 @@ Automated software tests cannot replace human language validation and real recog
 
 ### “Camera ready” but Record does nothing
 
-Read the model status. If it says **Not trained yet**, collect data and train that language first. Camera tracking and sign recognition are separate systems.
+Read the model status. If it says **Not trained yet**, collect data and train the ASL model first. Camera tracking and sign recognition are separate systems.
 
 ### The camera cannot open
 
@@ -595,10 +596,6 @@ The model does not update live. Press **Train or update this language model** ag
 
 This is deliberate. A newly trained model needs a fresh untouched evaluation. Old attempts remain stored but are not counted as evidence for the new model.
 
-### Arabic text works but speech does not
-
-Install a compatible Arabic text-to-speech voice in Windows and restart the app.
-
 ### The ZIP does not start
 
 Extract it, run `setup.ps1` once, then double-click `Start SignBridge.vbs`. If that fails, check `outputs/startup.log` or run `diagnose_signbridge.bat`.
@@ -607,16 +604,16 @@ Extract it, run `setup.ps1` once, then double-click `Start SignBridge.vbs`. If t
 
 Use this wording:
 
-> SignBridge UAE is a local webcam prototype for recognizing 8 isolated signs: four ASL signs with English output and four Emirati signs with Arabic output. Its controlled hotel access agent asks the signer to confirm the result and complete request before speech or action. It creates a persistent staff task, shows the task lifecycle, asks the guest to verify the result and can optionally notify one configured staff webhook. It does not make reservations, issue room keys or translate complete sign-language conversations.
+> SignBridge UAE is a local webcam prototype currently focused on four isolated ASL signs with English output. Its controlled hotel access agent asks the signer to confirm the result and complete request before speech or action. It creates a persistent staff task, shows the task lifecycle, asks the guest to verify the result and can optionally notify one configured staff webhook. It does not make reservations, issue room keys or translate complete sign-language conversations.
 
 ### Suggested demonstration
 
 1. State the limitation before demonstrating.
-2. Open **SignBridge agent** and explicitly choose ASL or Emirati Sign Language.
+2. Open **SignBridge agent** and point out the fixed **ASL → English** phase.
 3. Record one validated sign and show that SignBridge waits for confirmation.
 4. Choose the exact request, confirm the sentence and let SignBridge speak it.
 5. Open **Staff desk**, accept the task, type a staff reply and mark the service delivered. Return to the agent and record the guest's honest resolved/not-resolved answer.
-6. Continue with an `Again` or `Repeat` turn, then end and clear the signer session.
+6. Continue with an `Again` turn, then end and clear the signer session.
 7. Show an unsupported movement producing “Not sure” without advancing, speaking or acting.
 8. Briefly show the Final test report and explain that new people were kept out of training.
 
@@ -638,7 +635,7 @@ It follows a controlled loop: observe a supported sign, ask for confirmation, ch
 
 ### What actions can it perform now?
 
-It can start a session, create persistent local tasks for hotel check-in help, room/hotel service, interpreter help and the broader prototype's general assistance actions, show a waiting state, and recover an earlier staff reply after an `Again` or `Repeat` request. Staff can manage the queue inside SignBridge. The hotel pilot visibly tracks the task and asks the guest to verify the result. An administrator may connect one tested staff-notification webhook. It still cannot change reservations, issue room keys, process payment or request an interpreter from an outside service.
+It can start a session, create persistent local tasks for hotel check-in help, room/hotel service, interpreter help and the broader prototype's general assistance actions, show a waiting state, and recover an earlier staff reply after an `Again` request. Staff can manage the queue inside SignBridge. The hotel pilot visibly tracks the task and asks the guest to verify the result. An administrator may connect one tested staff-notification webhook. It still cannot change reservations, issue room keys, process payment or request an interpreter from an outside service.
 
 ### Does it work offline?
 
@@ -652,9 +649,9 @@ The current training workflow saves landmarks, not raw video. The video importer
 
 No. Learning happens only when training samples are recorded and the model is retrained.
 
-### Why are there two models?
+### Why is Emirati paused?
 
-ASL and Emirati Sign Language are separate languages with independent sign forms.
+ASL and Emirati Sign Language are separate languages with independent sign forms. Improving and testing one model first is more credible than claiming two weak models.
 
 ### Why not use a large neural network?
 
@@ -663,6 +660,8 @@ The immediate dataset is small and the deadline is short. A smaller model is fas
 ### Can uploaded videos be supported?
 
 Yes. **Train model → Import short video** accepts one short clip for one selected sign and saves its landmarks under that person's ID. It does not translate an arbitrary video or a sentence.
+
+For licensed multi-person ASL data, **Import a PopSign training folder** accepts original PopSign `game/train` clips for `Hello`, `Help` or `Water`. It refuses validation/test folders and does not silently map another word to `Again`.
 
 A remote participant should send separate 2-to-3-second clips, with their face,
 shoulders, elbows and both hands visible. Keep the phone still, use good front
@@ -677,15 +676,16 @@ Later, through local window capture, an overlay or a meeting-platform integratio
 
 Do these in order:
 
-1. Find fluent ASL and Emirati Sign Language reviewers.
-2. Validate all 8 forms before bulk recording.
+1. Find a fluent ASL reviewer and target-user feedback.
+2. Validate the 4 active ASL forms before bulk recording.
 3. Prepare stable training and final-tester ID lists.
 4. Choose the honest data plan above. Reduce the sign list if the available data is too small.
-5. Train both language models.
+5. Train the ASL model.
 6. Run the full final test with two or three untouched people.
 7. Test complete SignBridge agent tasks, including a second turn, and record false actions, corrections and completion time.
 8. Remove, replace or postpone signs that miss the targets.
 9. Ask Deaf or hard-of-hearing users and fluent signers to review whether the guided interaction is actually useful.
 10. Back up `data/`, `models/` and the full project folder.
+11. Restart Emirati work only after ASL has credible results and fluent Emirati support.
 
 The software foundation is ready for that work. The current bottlenecks are correct human language data and feedback from the people the workflow is intended to help.

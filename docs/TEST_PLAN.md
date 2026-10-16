@@ -12,7 +12,7 @@ The model passes only if all important checks pass.
 
 ## Accuracy
 
-- At least 85% balanced accuracy across the four signs in each language.
+- At least 85% balanced accuracy across the four active ASL signs.
 - No sign below 75% recall.
 - At least 95% of accepted results should be correct.
 - Reject at least 95% of unsupported gestures.
@@ -34,7 +34,7 @@ Accuracy should not fall by more than 10 percentage points between conditions.
 - Low-confidence attempts do not speak.
 - Confident attempts appear as text first; automatic speech is optional.
 - Undo, clear and correction choices work.
-- English and Arabic speech work without event Wi-Fi.
+- English text and speech work without event Wi-Fi.
 
 ## Agent and staff workflow
 

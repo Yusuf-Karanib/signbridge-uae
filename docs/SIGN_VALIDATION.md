@@ -2,7 +2,7 @@
 
 Do not approve a sign because it looks plausible.
 
-For each of the 8 signs:
+For each of the 4 active ASL signs:
 
 - Check the official reference.
 - Ask a fluent signer or qualified interpreter to perform and review it.
@@ -14,12 +14,13 @@ The app links directly to the selected sign's source entry. The source confirms 
 
 ASL reference: https://aslsignbank.com/
 
-Emirati reference: https://za.gov.ae/Sign-Language-Dictionary/UAE-Sign-Language-Categories
-
-The four Emirati entries in this prototype link to the official UAE dictionary. Broader Arabic datasets are useful technical references, but they do not prove that a sign is an Emirati variant.
-
 ## Selected vocabulary
 
 - ASL: Hello, Help, Water, Again.
+
+## Deferred vocabulary
+
 - Emirati Sign Language: Drink, Help, Wait, Repeat.
+
+These four Emirati entries remain saved and link to the official UAE dictionary: https://za.gov.ae/Sign-Language-Dictionary/UAE-Sign-Language-Categories. They are not exposed in the current app. Broader Arabic datasets do not prove that a sign is an Emirati variant.
 

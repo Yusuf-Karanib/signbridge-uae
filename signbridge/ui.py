@@ -53,6 +53,7 @@ from signbridge.classifier import (
 )
 from signbridge.computer_control import ComputerController
 from signbridge.config import (
+    ACTIVE_LANGUAGE_IDS,
     MIN_HAND_PRESENCE_RATIO,
     MIN_SAMPLES_PER_CLASS,
     PERSONAL_DEMO_SAMPLES_PER_CLASS,
@@ -66,6 +67,13 @@ from signbridge.integrations import (
     AgentSettingsStore,
     DeliveryResult,
     StaffWebhookConnector,
+)
+from signbridge.popsign_import import (
+    POPSIGN_CAPTURE_SOURCE,
+    POPSIGN_DATASET_NAME,
+    POPSIGN_LICENSE,
+    PopSignClip,
+    discover_popsign_training_clips,
 )
 from signbridge.speech import SpeechService
 from signbridge.tasks import (
@@ -332,6 +340,85 @@ class VideoImportWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class PopSignImportWorker(QThread):
+    progress_changed = Signal(int, int, str)
+    complete = Signal(object)
+    failed = Signal(str)
+
+    def __init__(
+        self,
+        clips: tuple[PopSignClip, ...],
+        store: DatasetStore,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.clips = clips
+        self.store = store
+
+    def run(self) -> None:
+        saved = 0
+        skipped = 0
+        errors: list[str] = []
+        total = len(self.clips)
+        try:
+            for index, clip in enumerate(self.clips, start=1):
+                if self.isInterruptionRequested():
+                    return
+                self.progress_changed.emit(index, total, clip.label)
+                try:
+                    imported = extract_training_video(
+                        clip.path, should_stop=self.isInterruptionRequested
+                    )
+                    ratio = float(imported.quality.get("hand_presence_ratio", 0.0))
+                    if ratio < MIN_HAND_PRESENCE_RATIO:
+                        skipped += 1
+                        errors.append(f"{clip.path.name}: hands were not clear")
+                        continue
+                    quality = dict(imported.quality)
+                    quality.update(
+                        {
+                            "source": "popsign_v2_1",
+                            "dataset": POPSIGN_DATASET_NAME,
+                            "dataset_split": "train",
+                            "dataset_clip_id": clip.clip_id,
+                            "license": POPSIGN_LICENSE,
+                            "consent_basis": "PopSign public dataset consent",
+                            "raw_video_stored": False,
+                        }
+                    )
+                    self.store.save_sample(
+                        language="asl",
+                        label=clip.label,
+                        person_id=clip.person_id,
+                        sequence=imported.sequence,
+                        quality=quality,
+                        consent_confirmed=True,
+                        capture_source=POPSIGN_CAPTURE_SOURCE,
+                    )
+                    saved += 1
+                except InterruptedError:
+                    return
+                except Exception as exc:
+                    skipped += 1
+                    errors.append(f"{clip.path.name}: {exc}")
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+
+        if saved == 0:
+            detail = errors[0] if errors else "No clip produced clear hand landmarks."
+            self.failed.emit(f"No samples were imported. {detail}")
+            return
+        self.complete.emit(
+            {
+                "saved": saved,
+                "skipped": skipped,
+                "errors": errors,
+                "total": total,
+            }
+        )
+
+
 class MainWindow(QMainWindow):
     def __init__(
         self,
@@ -375,6 +462,7 @@ class MainWindow(QMainWindow):
         self.training_worker: TrainingWorker | None = None
         self.video_import_worker: VideoImportWorker | None = None
         self.video_import_context: dict | None = None
+        self.popsign_import_worker: PopSignImportWorker | None = None
         self.camera_worker = CameraWorker(parent=self)
         self.camera_ok = False
         self.capture_controls_enabled = True
@@ -414,7 +502,7 @@ class MainWindow(QMainWindow):
         title = QLabel("SignBridge UAE")
         title.setObjectName("title")
         self.subtitle_label = QLabel(
-            "Hotel access pilot  •  confirm intent  →  complete a safe service workflow"
+            "ASL-first hotel access pilot  •  confirm intent  →  complete a safe service workflow"
         )
         self.subtitle_label.setObjectName("subtitle")
         title_group.addWidget(title)
@@ -438,7 +526,7 @@ class MainWindow(QMainWindow):
         root.addLayout(header)
 
         self.scope_label = QLabel(
-            "Prototype scope: limited confirmed sign intents for a hotel service workflow. It is not full sign-language translation."
+            "Current phase: ASL signs → English text and speech. Emirati signs are saved for a later phase after ASL feedback. This is not full sign-language translation."
         )
         self.scope_label.setWordWrap(True)
         self.scope_label.setObjectName("warning")
@@ -578,8 +666,13 @@ class MainWindow(QMainWindow):
 
     def _language_combo(self) -> QComboBox:
         combo = QComboBox()
-        for language_id, pack in self.vocabulary.packs.items():
+        for language_id in ACTIVE_LANGUAGE_IDS:
+            pack = self.vocabulary.pack(language_id)
             combo.addItem(pack.name, language_id)
+        combo.setEnabled(combo.count() > 1)
+        combo.setToolTip(
+            "The current phase uses ASL input with English text and speech."
+        )
         return combo
 
     def _build_use_tab(self) -> QWidget:
@@ -970,7 +1063,7 @@ class MainWindow(QMainWindow):
         tab, layout = self._scroll_page()
 
         notice = QLabel(
-            "Validate each exact sign with a fluent signer before collecting many examples. The app stores landmarks, not camera video."
+            "ASL first: validate each exact sign with a fluent ASL signer before collecting many examples. The app stores landmarks, not camera video."
         )
         notice.setWordWrap(True)
         notice.setObjectName("warning")
@@ -1033,6 +1126,26 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.import_training_video_button, 1)
         button_row.addWidget(self.delete_last_button, 1)
         layout.addLayout(button_row)
+
+        dataset_card, dataset_layout = self._section_card(
+            "Optional: licensed ASL dataset",
+            "Import up to 30 original PopSign TRAIN clips for one sign folder. This supports Hello, Help and Water only; it does not supply Again or OTHER / NO SIGN.",
+        )
+        self.import_popsign_button = QPushButton(
+            "Import a PopSign training folder"
+        )
+        self.import_popsign_button.setToolTip(
+            "Use an extracted original PopSign v2.1 train/hello, train/help or train/water folder"
+        )
+        dataset_layout.addWidget(self.import_popsign_button)
+        dataset_note = QLabel(
+            'Source: <a href="https://signdata.cc.gatech.edu/view/datasets/popsign_v2_1/index.html">Georgia Tech PopSign ASL v2.1</a> • CC BY 4.0 • raw videos are not copied'
+        )
+        dataset_note.setObjectName("muted")
+        dataset_note.setWordWrap(True)
+        dataset_note.setOpenExternalLinks(True)
+        dataset_layout.addWidget(dataset_note)
+        layout.addWidget(dataset_card)
 
         progress_card, progress_layout = self._section_card(
             "3. Collection progress",
@@ -1388,6 +1501,7 @@ class MainWindow(QMainWindow):
         self.import_training_video_button.clicked.connect(
             self._import_training_video
         )
+        self.import_popsign_button.clicked.connect(self._import_popsign_folder)
         self.record_evaluation_button.clicked.connect(self._capture_evaluation_sample)
         self.delete_last_button.clicked.connect(self._remove_last_sample)
         self.train_model_button.clicked.connect(self._train_model)
@@ -1428,6 +1542,10 @@ class MainWindow(QMainWindow):
             self.tabs.setTabVisible(index, not self.demo_mode_enabled)
         self.tabs.setTabVisible(self.assistance_tab_index, True)
         self.tabs.setTabVisible(self.staff_tab_index, True)
+        if self.demo_mode_enabled:
+            asl_index = self.assist_language.findData("asl")
+            if asl_index >= 0:
+                self.assist_language.setCurrentIndex(asl_index)
         language = self._combo_language(self.assist_language)
         self._clear_assistance_actions()
         self.assistance_session.reset(language)
@@ -1437,16 +1555,16 @@ class MainWindow(QMainWindow):
         self._populate_assistance_signs()
         if self.demo_mode_enabled:
             self.assistance_feedback = (
-                "Hotel pilot ready. Use the validated Help sign, then choose one of three hotel-service goals."
+                "ASL hotel pilot ready. Use the validated Help sign, then choose one of three hotel-service goals."
             )
             self.scope_label.setText(
-                "Hotel pilot: Help can create only a check-in-assistance, hotel-service or interpreter task after confirmation. This is not full sign-language translation."
+                "ASL-first hotel pilot: Help can create only a check-in-assistance, hotel-service or interpreter task after confirmation. This is not full sign-language translation."
             )
             self.demo_mode_button.setObjectName("primary")
         else:
             self.assistance_feedback = "Setup tools restored. Ready for a new request."
             self.scope_label.setText(
-                "Prototype scope: 4 ASL signs + 4 Emirati signs. The controlled agent remembers a short session and runs limited hotel-service actions — not full sign-language translation."
+                "Current phase: ASL signs → English text and speech. Emirati signs are saved for later after ASL feedback. The agent runs limited hotel-service actions — not full sign-language translation."
             )
             self.demo_mode_button.setObjectName("")
         self.demo_mode_button.style().unpolish(self.demo_mode_button)
@@ -2769,7 +2887,13 @@ class MainWindow(QMainWindow):
         video_idle = not (
             self.video_import_worker and self.video_import_worker.isRunning()
         )
-        self.import_training_video_button.setEnabled(enabled and video_idle)
+        popsign_idle = not (
+            self.popsign_import_worker
+            and self.popsign_import_worker.isRunning()
+        )
+        imports_idle = video_idle and popsign_idle
+        self.import_training_video_button.setEnabled(enabled and imports_idle)
+        self.import_popsign_button.setEnabled(enabled and imports_idle)
         self.record_evaluation_button.setEnabled(
             enabled and self.camera_ok and evaluation_has_model
         )
@@ -2856,7 +2980,13 @@ class MainWindow(QMainWindow):
         }
 
     def _import_training_video(self) -> None:
-        if self.video_import_worker and self.video_import_worker.isRunning():
+        if (
+            self.video_import_worker
+            and self.video_import_worker.isRunning()
+        ) or (
+            self.popsign_import_worker
+            and self.popsign_import_worker.isRunning()
+        ):
             return
         context = self._training_context()
         if context is None:
@@ -2908,6 +3038,105 @@ class MainWindow(QMainWindow):
         worker = self.video_import_worker
         self.video_import_worker = None
         self.video_import_context = None
+        if worker is not None:
+            worker.deleteLater()
+        self._set_capture_buttons(True)
+
+    def _import_popsign_folder(self) -> None:
+        if (
+            self.video_import_worker
+            and self.video_import_worker.isRunning()
+        ) or (
+            self.popsign_import_worker
+            and self.popsign_import_worker.isRunning()
+        ):
+            return
+
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Choose one extracted PopSign TRAIN sign folder",
+            "",
+        )
+        if not folder:
+            return
+
+        existing_clip_ids: set[str] = set()
+        for record in self.dataset.load_records("asl"):
+            quality = record.metadata.get("quality", {})
+            if not isinstance(quality, dict):
+                continue
+            clip_id = quality.get("dataset_clip_id")
+            if clip_id:
+                existing_clip_ids.add(str(clip_id))
+
+        try:
+            clips = discover_popsign_training_clips(
+                Path(folder),
+                excluded_clip_ids=existing_clip_ids,
+                excluded_people=self.evaluation.people("asl"),
+            )
+        except ValueError as exc:
+            QMessageBox.warning(self, "PopSign folder not accepted", str(exc))
+            return
+
+        label = clips[0].label.title()
+        people = len({clip.person_id for clip in clips})
+        answer = QMessageBox.question(
+            self,
+            "Import licensed ASL training clips?",
+            f"Found {len(clips)} new {label} clips from {people} anonymous PopSign participants. "
+            "Only landmark sequences will be saved; the raw videos will not be copied. "
+            "These clips are from the official TRAIN split under CC BY 4.0. "
+            "Again and OTHER / NO SIGN still need separate examples. Continue?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        self.popsign_import_worker = PopSignImportWorker(
+            clips, self.dataset, self
+        )
+        self.popsign_import_worker.progress_changed.connect(
+            self._popsign_import_progress
+        )
+        self.popsign_import_worker.complete.connect(
+            self._popsign_import_complete
+        )
+        self.popsign_import_worker.failed.connect(self._popsign_import_failed)
+        self.popsign_import_worker.finished.connect(
+            self._popsign_import_finished
+        )
+        self._set_capture_buttons(False)
+        self.training_status.setText(
+            f"Preparing to import {len(clips)} licensed {label} clips…"
+        )
+        self.popsign_import_worker.start()
+
+    def _popsign_import_progress(
+        self, current: int, total: int, label: str
+    ) -> None:
+        self.training_status.setText(
+            f"Importing licensed {label.title()} clip {current} of {total}…"
+        )
+
+    def _popsign_import_complete(self, result: dict) -> None:
+        saved = int(result.get("saved", 0))
+        skipped = int(result.get("skipped", 0))
+        self._refresh_training_status()
+        message = (
+            f"Saved {saved} new ASL landmark samples from {POPSIGN_DATASET_NAME}. "
+            "The original videos were not copied."
+        )
+        if skipped:
+            message += f" Skipped {skipped} clips that could not be processed safely."
+        QMessageBox.information(self, "PopSign import complete", message)
+
+    def _popsign_import_failed(self, message: str) -> None:
+        self.training_status.setText("PopSign clips were not imported")
+        QMessageBox.warning(self, "PopSign import failed", message)
+
+    def _popsign_import_finished(self) -> None:
+        worker = self.popsign_import_worker
+        self.popsign_import_worker = None
         if worker is not None:
             worker.deleteLater()
         self._set_capture_buttons(True)
@@ -3621,6 +3850,9 @@ class MainWindow(QMainWindow):
         if self.video_import_worker and self.video_import_worker.isRunning():
             self.video_import_worker.requestInterruption()
             self.video_import_worker.wait(5000)
+        if self.popsign_import_worker and self.popsign_import_worker.isRunning():
+            self.popsign_import_worker.requestInterruption()
+            self.popsign_import_worker.wait(5000)
         for worker in list(self.webhook_workers):
             if worker.isRunning():
                 worker.wait(5500)

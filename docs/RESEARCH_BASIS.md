@@ -5,7 +5,7 @@ Originally researched on 28 September 2026 and rechecked on 14 October 2026.
 ## What this build uses
 
 - **MediaPipe Gesture Recognizer and Holistic Landmarker:** the first model keeps a responsive two-hand preview and supplies safe generic control gestures. Holistic adds both hands and upper-body position only while a sign is being recorded. The recorded sequence can learn movement instead of treating every sign as one still image.
-- **A separate classifier for each language:** ASL and Emirati Sign Language never share a label or assume the same movement.
+- **ASL first:** only the ASL classifier is exposed during the current evidence-building phase. Emirati work remains separate and deferred.
 - **Local, consented examples:** only landmark coordinates are saved. The app does not save webcam video.
 - **Unknown examples and confidence rejection:** unsupported or unclear attempts should produce no text or sound.
 
@@ -17,7 +17,7 @@ This keeps the useful collect-train-demonstrate flow from Nicholas Renotte's Ten
 | --- | --- | --- | --- |
 | [MediaPipe Holistic](https://ai.google.dev/edge/api/mediapipe/python/mp/tasks/vision/HolisticLandmarker) | Hand, pose and face landmarks for images/video | Google MediaPipe distribution | Used for local landmark extraction |
 | [ASL Citizen](https://www.microsoft.com/en-us/research/project/asl-citizen/) | About 84,000 isolated-sign videos, 2,700 ASL signs, varied signers | Research licence; contact Microsoft for commercial use | Strong evidence for isolated-sign and unseen-signer testing; dataset not bundled |
-| [PopSign ASL](https://signdata.cc.gatech.edu/view/datasets/popsign_v1_0/) | More than 210,000 examples of 250 isolated ASL signs from consenting Deaf signers | CC BY 4.0 | Useful future ASL training source; phone-oriented one-handed adaptations still require form review |
+| [PopSign ASL v2.1](https://signdata.cc.gatech.edu/view/datasets/popsign_v2_1/index.html) | 200,686 videos, 562 isolated signs and 47 signers | CC BY 4.0 | Optional importer accepts original `game/train` clips for Hello, Help and Water; previews, variants, validation and test splits are rejected |
 | [ASL Signbank](https://aslsignbank.com/) | Curated ASL sign entries and variants | CC BY-NC-SA 4.0 | Exact ASL source links; media not copied |
 | [WLASL](https://github.com/dxli94/WLASL) | 2,000 isolated ASL word classes | C-UDA; non-commercial computational use | Useful benchmark; not bundled |
 | [How2Sign](https://how2sign.github.io/) | More than 80 hours of continuous ASL | CC BY-NC 4.0; research use | Long-term sentence research, not this event build |
@@ -35,7 +35,7 @@ This keeps the useful collect-train-demonstrate flow from Nicholas Renotte's Ten
 - General Arabic Sign Language data cannot automatically validate a UAE regional form.
 - Large video models need more data and computing time than this event deadline allows.
 
-The repository keeps eight candidate isolated signs. For the competition, the honest first recognition target is the externally validated `Help` sign plus strong unknown/rejection testing; the other signs should not enter the pitch unless they pass unseen-user tests. Continuous conversation translation remains a later research project.
+The active app keeps four ASL candidate isolated signs. For the competition, the honest first recognition target is the externally validated `Help` sign plus strong unknown/rejection testing; the other signs should not enter the pitch unless they pass unseen-user tests. Continuous conversation translation remains a later research project.
 
 MediaPipe can also return face landmarks, but this version does not classify facial grammar. A future sentence system must model facial and other non-manual information rather than simply joining isolated sign guesses.
 

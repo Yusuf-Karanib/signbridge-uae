@@ -3,12 +3,12 @@
 ## Current software foundation
 
 - Webcam input.
-- 4 candidate ASL signs and 4 candidate Emirati signs.
-- The user chooses the language.
+- 4 active candidate ASL signs with English output.
+- Emirati vocabulary remains saved but hidden until after ASL feedback.
 - One recorded attempt produces text, confidence and optional speech.
 - Unsupported or unclear attempts should be rejected.
 
-The software is not yet a validated bilingual recognizer. The local ASL model is personalized and has no unseen-person score; no Emirati model exists.
+The software is not yet a validated ASL recognizer. The local ASL model is personalized and has no unseen-person score.
 
 ## Competition scope now
 
@@ -26,7 +26,7 @@ The software is not yet a validated bilingual recognizer. The local ASL model is
 - The guest confirms whether the delivered service actually resolved the request; only that confirmation counts as success.
 - The agent panel visibly shows goal confirmation, task creation, notification, staff progress, guest verification and session clearing.
 - Staff can type a short reply, and the person can continue with another sign.
-- The session remembers an earlier staff reply for `Again` or `Repeat`.
+- The session remembers an earlier staff reply for `Again`.
 - Ending the signer interaction clears temporary conversation text. Staff independently records the persistent task's real outcome.
 - An optional, administrator-configured HTTPS webhook can notify a real staff channel. It does not create bookings or request interpreters.
 
@@ -43,9 +43,9 @@ The next build is not a larger vocabulary. Add attempt-level evidence, complete 
 
 This is the smallest version that can be trained and tested honestly before the event.
 
-## Now: short training-video import
+## Now: ASL training-video import
 
-The Train model screen accepts a short clip containing exactly one selected sign. It extracts the same landmark sequence as live capture and does not copy the raw video. It does not translate arbitrary videos or sentences. Trimming, timelines and continuous-video translation remain future work.
+The Train model screen accepts a short clip containing exactly one selected sign. It also accepts one official PopSign `game/train` sign folder for `Hello`, `Help` or `Water`, limited to 30 varied signers' clips per import. It extracts the same landmark sequence as live capture and does not copy raw video into SignBridge. It does not translate arbitrary videos or sentences. `Again`, negative examples, final-test video import and continuous translation remain separate work.
 
 ## Later: online meetings
 
@@ -60,3 +60,5 @@ Meeting capture needs clear consent, privacy controls and testing for each platf
 ## Long-term product
 
 Continuous sign-language translation needs sentence-level training data, face and body information, grammar-aware models, qualified Deaf/sign-language experts and much larger testing. It cannot be created by joining isolated-word guesses together.
+
+After the ASL model receives credible unseen-person and target-user feedback, restart Emirati development with fluent Emirati signers and properly licensed UAE data. Do not transfer ASL movements or model weights as if the languages were interchangeable.

@@ -2,7 +2,7 @@
 
 ## Rechecked verdict — 15 October 2026
 
-Keep the project and category, but focus the competition demo on a hotel reception where no accessible self-service option is assumed. Do not present the current build as a validated bilingual MVP yet.
+Keep the project and category, but focus the competition demo on an ASL hotel-reception workflow where no accessible self-service option is assumed. Do not present the current build as a validated translator.
 
 - Recommended category: **Best Societal AI Agent**.
 - Working name: **SignBridge Access Agent — Hotel Pilot**.
@@ -22,25 +22,24 @@ The current terms say entry is open globally, teams may have up to six people, s
 
 ## Important eligibility question
 
-The overview allows a new AI-agent capability from an existing project, while the terms also say the submitted agent has not been used before. SignBridge's earlier detector was publicly demonstrated and the repository is public; the Access Agent capability was added after the competition launched.
+The overview allows a new AI-agent capability from an existing project, while the terms also say the submitted agent has not been used before. SignBridge's earlier detector was demonstrated at AI Everything and the repository is public, but Yusuf says it was never deployed, sold or used operationally. The Access Agent capability was added after the competition launched.
 
 Ask the organizer in writing whether adapting this non-commercial detector into the new Access Agent is eligible. Keep the answer. Do not hide the earlier prototype or claim it was never shown.
 
 ## What genuinely exists now
 
 - A working desktop application and camera pipeline.
-- Eight configured candidate signs: four ASL and four Emirati Sign Language signs.
+- Four active ASL candidates with English output. The Emirati configuration is saved but deferred.
 - Confidence rejection and confirmation before any action.
 - Persistent hotel-staff tasks, replies, guest-confirmed outcomes and an optional webhook.
 - A visible goal, task, notification, staff, guest-verification and session-clear progress trail.
 - Aggregate evidence export and local deletion controls.
-- Fifty-three automated tests pass after the hotel-pilot and guest-verification changes.
+- Sixty automated tests pass, including the ASL-only scope and guarded PopSign training-folder importer.
 
 Recognition is not ready for a competition claim:
 
 - The saved ASL model uses one training person and has no unseen-person result.
 - Its weakest classes need more data and retesting.
-- No trained Emirati model exists.
 - No final-test attempts exist yet.
 - The clean sharing package intentionally excludes personal training data and trained models, so it requires setup and training.
 
@@ -86,7 +85,7 @@ The current task report covers created tasks, staff completion time and guest-co
 2. Add attempt-level evidence and full-workflow timing.
 3. Add short-video import to **Final test** so remote unseen users can participate without their clips entering training.
 4. Obtain fluent-signer and Deaf-user validation.
-5. Train and pass unseen-person tests for one language first. Treat Emirati as the UAE priority; add ASL to the pitch only if it also passes.
+5. Improve and pass unseen-person ASL tests first. Restart Emirati work only after useful ASL feedback and access to fluent Emirati reviewers.
 6. Test one real hotel-staff endpoint and run 20 complete hotel-service trials.
 7. Only then produce the summary report, pitch deck and demo video.
 

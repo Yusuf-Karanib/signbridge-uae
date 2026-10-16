@@ -224,6 +224,7 @@ class AssistanceUiTests(unittest.TestCase):
         window._toggle_demo_mode()
 
         self.assertTrue(window.demo_mode_enabled)
+        self.assertEqual(window.assist_language.currentData(), "asl")
         self.assertTrue(window.tabs.isTabVisible(window.assistance_tab_index))
         self.assertTrue(window.tabs.isTabVisible(window.staff_tab_index))
         self.assertFalse(window.tabs.isTabVisible(window.training_tab_index))
@@ -251,6 +252,23 @@ class AssistanceUiTests(unittest.TestCase):
         window._toggle_demo_mode()
         self.assertTrue(window.tabs.isTabVisible(window.training_tab_index))
         self.assertEqual(window.assist_manual_sign.count(), 4)
+        window.close()
+
+    def test_current_phase_exposes_only_asl_with_english_output(self) -> None:
+        window = self._window()
+
+        for combo in (
+            window.use_language,
+            window.assist_language,
+            window.train_language,
+            window.eval_language,
+        ):
+            self.assertEqual(combo.count(), 1)
+            self.assertEqual(combo.currentData(), "asl")
+            self.assertFalse(combo.isEnabled())
+
+        self.assertIn("ASL signs", window.scope_label.text())
+        self.assertIn("English", window.scope_label.text())
         window.close()
 
     def test_no_hand_sample_is_allowed_only_for_other_training(self) -> None:

@@ -6,11 +6,11 @@ The full current control instructions are in `docs/CONTROL_GUIDE.md`.
 2. Open **Train model**.
 3. Open each exact source link and have a fluent signer check the form.
 4. Confirm the participant-consent box. For a personalized demo, record 20 to 30 varied examples for every class from the demonstrator. A remote person can send separate 2–5 second clips; select the sign and Person ID, then use **Import short video**.
-5. For stronger testing, use two or three training people with 10 to 15 examples per class from each.
+5. For stronger ASL training, use two or three people with 10 to 15 examples per class from each, or follow `docs/ASL_DATASET_IMPORT.md` to add licensed PopSign `game/train` clips for Hello, Help and Water.
 6. Record varied `OTHER / NO SIGN` examples for every person.
 7. Use a different Person ID for every person.
-8. Train each language model.
-9. Open **SignBridge agent**, choose the language and press **Record a request sign**.
+8. Train the ASL model.
+9. Open **SignBridge agent** and press **Record a request sign**. ASL with English output is selected for this phase.
 10. Confirm the sign, choose the exact request and confirm the full sentence before speech.
 11. Open **Staff desk**, accept the new task, save a reply and choose **Mark service delivered**, **Mark wrong action** or **Cancel selected** honestly.
 12. Return to **SignBridge agent**. The guest confirms **resolved** or **still need help**. Only the guest's resolved confirmation counts as success.
@@ -21,7 +21,7 @@ The full current control instructions are in `docs/CONTROL_GUIDE.md`.
 
 The clean sharing ZIP intentionally contains no participant data or personal trained model. On another computer, run setup and train or import consented landmark samples before expecting camera recognition.
 
-For computer control, open **Computer control**, choose a mode, turn it on and hold an open palm for 1.5 seconds. Leave that tab or press **Stop** to disable it. These are generic shortcuts, not ASL or Emirati signs.
+For computer control, open **Computer control**, choose a mode, turn it on and hold an open palm for 1.5 seconds. Leave that tab or press **Stop** to disable it. These are generic shortcuts, not ASL signs.
 
 The simple **Recognize** screen keeps speech manual by default. The SignBridge agent always requires confirmation of the sign and full request before speech or action.
 
