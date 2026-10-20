@@ -1,5 +1,11 @@
 # What comes after the event prototype
 
+For the startup-programme route covering Hub71 Initiate, Access, Hub71+ AI,
+the DCAI government accelerator and Hub71 Sandbox, read
+[`STARTUP_PROGRAMME_ROADMAP.md`](STARTUP_PROGRAMME_ROADMAP.md). The short answer
+is to prepare for Initiate first and leave the other programmes until SignBridge
+has real users, customer evidence and deployment readiness.
+
 ## Current software foundation
 
 - Webcam input.

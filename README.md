@@ -12,6 +12,8 @@ For the exact camera, slide, volume and mouse controls in the current version,
 read `docs/CONTROL_GUIDE.md`.
 For the bounded championship scope and demonstration, read
 `docs/COMPETITION_GUIDE.md`.
+For the current startup-programme sequence and application readiness gates, read
+`docs/STARTUP_PROGRAMME_ROADMAP.md`.
 
 ## Start it
 

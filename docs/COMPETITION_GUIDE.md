@@ -1,5 +1,10 @@
 # Create AI Agents Championship guide
 
+The competition build and startup programme plan now share one evidence path.
+See [`STARTUP_PROGRAMME_ROADMAP.md`](STARTUP_PROGRAMME_ROADMAP.md) for the
+current Hub71 Initiate, Access, Hub71+ AI, DCAI and Sandbox sequence. No separate
+features should be added merely to apply to another programme.
+
 ## Rechecked verdict — 15 October 2026
 
 Keep the project and category, but focus the competition demo on an ASL hotel-reception workflow where no accessible self-service option is assumed. Do not present the current build as a validated translator.
