@@ -14,6 +14,9 @@ For the bounded championship scope and demonstration, read
 `docs/COMPETITION_GUIDE.md`.
 For the current startup-programme sequence and application readiness gates, read
 `docs/STARTUP_PROGRAMME_ROADMAP.md`.
+The latest technical review and exact changes are in `docs/REVIEW_2026_10_25.md`.
+After this update, retrain the ASL model once to use the corrected confidence
+training. Your existing samples are kept.
 
 ## Start it
 
@@ -27,7 +30,7 @@ For the current startup-programme sequence and application readiness gates, read
 8. Open **SignBridge agent** and record one sign.
 9. Confirm the camera suggestion, choose the exact request, and confirm the full sentence.
 10. Open **Staff desk** to accept the saved task, type a reply and mark the service delivered. The guest then confirms whether it was resolved. You can optionally connect a tested HTTPS Slack/Teams-compatible webhook.
-11. Use **Final test** with people who were never used for training.
+11. Use **Final test** with people who were never used for training. Confirm testing permission, then record live or choose **Import test video** for one short, untouched clip. Test results never become training data.
 12. For a focused presentation, press **Competition demo**. It shows only the guest agent and Staff desk and permits only `Help` followed by hotel check-in assistance, a room/hotel service request or an interpreter request.
 
 The camera panel shows live FPS. If the default webcam is wrong or busy, choose
@@ -62,7 +65,7 @@ The exact checklist is in `docs/TEST_PLAN.md`.
 8. A small rule-based action engine creates persistent local hotel tasks and can use an earlier staff reply during the same session.
 9. The Staff desk records delivery, wrong-action and cancelled outcomes. A request counts as successful only after the guest confirms it was resolved. An optional webhook can notify a real staff channel only after it is explicitly configured and enabled.
 10. Ending the signer session clears temporary conversation text. The staff task remains until staff records its real outcome.
-11. A privacy-safe evidence report measures task completion, guest resolution, false actions, corrections and staff completion time without exporting replies or participant IDs.
+11. A privacy-safe evidence report includes rejected camera attempts, manual fallbacks, journeys ending before any task, guest resolution and time from first attempt to final resolution. It does not export replies or participant IDs.
 
 Speech is manual by default so a wrong result is not spoken automatically. Automatic speech can be enabled for a controlled demo.
 

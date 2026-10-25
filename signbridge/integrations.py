@@ -53,6 +53,8 @@ class AgentSettingsStore:
             return WebhookSettings()
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict) or not isinstance(payload.get("webhook", {}), dict):
+                raise ValueError("Expected saved webhook settings")
             webhook = payload.get("webhook", {})
             return WebhookSettings(
                 enabled=bool(webhook.get("enabled", False)),

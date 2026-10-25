@@ -196,6 +196,7 @@ class ReceptionAgent:
         input_method: str = "unknown",
         correction_used: bool = False,
         confidence: float | None = None,
+        journey_id: str | None = None,
     ) -> AgentActionResult:
         if option.id not in ACTION_IDS:
             raise ValueError(f"No agent action is configured for {option.id}")
@@ -239,6 +240,7 @@ class ReceptionAgent:
                 input_method=input_method,
                 correction_used=correction_used,
                 confidence=confidence,
+                journey_id=journey_id,
             )
             result = AgentActionResult(
                 action_id=option.id,

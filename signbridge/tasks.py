@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -63,12 +64,28 @@ class ReceptionTask:
     visitor_confirmed_at: str | None = None
 
 
+@dataclass(frozen=True)
+class ServiceJourney:
+    """Minimal service evidence: no signer identity, text, images or landmarks."""
+
+    id: str
+    language: str
+    started_at: str
+    task_id: str | None = None
+    ended_at: str | None = None
+    camera_accepted: int = 0
+    camera_rejected: int = 0
+    user_rejections: int = 0
+    manual_selections: int = 0
+
+
 class TaskStore:
     """Stores the service queue locally without saving sign video."""
 
     def __init__(self, path: Path | None = AGENT_TASKS_PATH) -> None:
         self.path = Path(path) if path is not None else None
         self._tasks: dict[str, ReceptionTask] = {}
+        self._journeys: dict[str, ServiceJourney] = {}
         self.load_error: str | None = None
         self._load()
 
@@ -86,6 +103,7 @@ class TaskStore:
         input_method: str = "unknown",
         correction_used: bool = False,
         confidence: float | None = None,
+        journey_id: str | None = None,
     ) -> ReceptionTask:
         self._raise_if_unreadable()
         now = datetime.now(timezone.utc).isoformat()
@@ -102,8 +120,13 @@ class TaskStore:
             correction_used=bool(correction_used),
             confidence=(float(confidence) if confidence is not None else None),
         )
-        self._tasks[task.id] = task
-        self._save()
+        journeys = dict(self._journeys)
+        if journey_id is not None:
+            journey = self._required_journey(journey_id)
+            if journey.task_id or journey.ended_at:
+                raise ValueError("This service journey already ended or created a task")
+            journeys[journey_id] = replace(journey, task_id=task.id)
+        self._commit(tasks={**self._tasks, task.id: task}, journeys=journeys)
         return task
 
     def get(self, task_id: str) -> ReceptionTask | None:
@@ -141,8 +164,7 @@ class TaskStore:
                 ),
             }
         )
-        self._tasks[task.id] = updated
-        self._save()
+        self._put_task(updated)
         return updated
 
     def add_reply(self, task_id: str, reply: str) -> ReceptionTask:
@@ -157,8 +179,7 @@ class TaskStore:
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
-        self._tasks[task.id] = updated
-        self._save()
+        self._put_task(updated)
         return updated
 
     def mark_delivery(
@@ -176,8 +197,7 @@ class TaskStore:
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
-        self._tasks[task.id] = updated
-        self._save()
+        self._put_task(updated)
         return updated
 
     def mark_outcome(
@@ -196,8 +216,7 @@ class TaskStore:
                 "completed_at": task.completed_at or now,
             }
         )
-        self._tasks[task.id] = updated
-        self._save()
+        self._put_task(updated)
         return updated
 
     def mark_visitor_outcome(
@@ -227,16 +246,107 @@ class TaskStore:
                 "visitor_confirmed_at": now,
             }
         )
-        self._tasks[task.id] = updated
-        self._save()
+        self._put_task(updated)
         return updated
 
     def clear_all(self) -> int:
         self._raise_if_unreadable()
         count = len(self._tasks)
-        self._tasks.clear()
-        self._save()
+        self._commit(tasks={}, journeys={})
         return count
+
+    def start_journey(self, language: str) -> str:
+        self._raise_if_unreadable()
+        journey = ServiceJourney(
+            id=uuid.uuid4().hex,
+            language=str(language),
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        self._commit(journeys={**self._journeys, journey.id: journey})
+        return journey.id
+
+    def record_journey_event(self, journey_id: str, event: str) -> None:
+        if event not in {"camera_accepted", "camera_rejected", "user_rejections", "manual_selections"}:
+            raise ValueError("Unknown service evidence event")
+        journey = self._required_journey(journey_id)
+        if journey.task_id or journey.ended_at:
+            raise ValueError("This service journey has already left input collection")
+        updated = replace(journey, **{event: getattr(journey, event) + 1})
+        self._commit(journeys={**self._journeys, journey_id: updated})
+
+    def end_journey(self, journey_id: str) -> None:
+        journey = self._required_journey(journey_id)
+        if journey.task_id or journey.ended_at:
+            return
+        self._commit(journeys={
+            **self._journeys,
+            journey_id: replace(journey, ended_at=datetime.now(timezone.utc).isoformat()),
+        })
+
+    def journey_summary(self) -> dict:
+        journeys = list(self._journeys.values())
+        linked = [journey for journey in journeys if journey.task_id]
+        resolved = [
+            journey for journey in linked
+            if (task := self.get(journey.task_id)) is not None
+            and task.visitor_outcome == VisitorOutcome.RESOLVED
+            and task.outcome == TaskOutcome.SUCCESS
+        ]
+        completion_seconds = []
+        for journey in resolved:
+            task = self.get(journey.task_id)
+            try:
+                elapsed = (
+                    datetime.fromisoformat(task.visitor_confirmed_at)
+                    - datetime.fromisoformat(journey.started_at)
+                ).total_seconds()
+                if elapsed >= 0:
+                    completion_seconds.append(elapsed)
+            except (TypeError, ValueError):
+                continue
+        accepted = sum(journey.camera_accepted for journey in journeys)
+        rejected = sum(journey.camera_rejected for journey in journeys)
+        return {
+            "journeys_started": len(journeys),
+            "journeys_with_tasks": len(linked),
+            "ended_without_task": sum(bool(item.ended_at) and not item.task_id for item in journeys),
+            "open_without_task": sum(not item.ended_at and not item.task_id for item in journeys),
+            "camera_attempts": accepted + rejected,
+            "camera_accepted": accepted,
+            "camera_rejected": rejected,
+            "camera_rejection_rate": rejected / (accepted + rejected) if accepted + rejected else None,
+            "user_rejected_suggestions": sum(item.user_rejections for item in journeys),
+            "manual_selections": sum(item.manual_selections for item in journeys),
+            "guest_resolved_journeys": len(resolved),
+            "task_completion_from_first_attempt": len(resolved) / len(journeys) if journeys else None,
+            "median_first_attempt_to_resolution_seconds": median(completion_seconds) if completion_seconds else None,
+            "timed_resolved_journeys": len(completion_seconds),
+            "legacy_tasks_without_journey": sum(
+                task.id not in {item.task_id for item in linked} for task in self._tasks.values()
+            ),
+        }
+
+    def _required_journey(self, journey_id: str) -> ServiceJourney:
+        self._raise_if_unreadable()
+        if journey_id not in self._journeys:
+            raise ValueError("The service journey was not found")
+        return self._journeys[journey_id]
+
+    def _put_task(self, task: ReceptionTask) -> None:
+        self._commit(tasks={**self._tasks, task.id: task})
+
+    def _commit(self, *, tasks: dict | None = None, journeys: dict | None = None) -> None:
+        # A failed disk write must not leave a task that only exists in memory.
+        previous_tasks, previous_journeys = self._tasks, self._journeys
+        if tasks is not None:
+            self._tasks = tasks
+        if journeys is not None:
+            self._journeys = journeys
+        try:
+            self._save()
+        except Exception:
+            self._tasks, self._journeys = previous_tasks, previous_journeys
+            raise
 
     def summary(self) -> dict[str, float | int | None]:
         tasks = list(self._tasks.values())
@@ -315,16 +425,19 @@ class TaskStore:
     def write_evidence_report(self, path: Path) -> Path:
         self._raise_if_unreadable()
         destination = Path(path)
+        if self.path is not None and destination.resolve() == self.path.resolve():
+            raise ValueError("Choose a report filename different from the local task database")
         destination.parent.mkdir(parents=True, exist_ok=True)
         tasks = list(self._tasks.values())
         payload = {
-            "version": 2,
+            "version": 3,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "privacy_note": (
                 "This aggregate report excludes staff replies, webhook URLs, "
                 "camera data and participant identifiers."
             ),
             "summary": self.summary(),
+            "service_journeys": self.journey_summary(),
             "tasks_by_action": dict(Counter(task.action_id for task in tasks)),
             "tasks_by_language": dict(Counter(task.language for task in tasks)),
             "tasks_by_input_method": dict(
@@ -362,6 +475,8 @@ class TaskStore:
             return
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("Expected a task database object")
             tasks = payload.get("tasks", [])
             self._tasks = {
                 str(item["id"]): ReceptionTask(
@@ -404,8 +519,13 @@ class TaskStore:
                 )
                 for item in tasks
             }
+            self._journeys = {
+                str(item["id"]): ServiceJourney(**item)
+                for item in payload.get("journeys", [])
+            }
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             self._tasks = {}
+            self._journeys = {}
             self.load_error = (
                 f"The local task file could not be read: {exc}. "
                 "It was left untouched so it can be recovered."
@@ -416,8 +536,9 @@ class TaskStore:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 2,
+            "version": 3,
             "tasks": [asdict(task) for task in self.list_tasks()],
+            "journeys": [asdict(item) for item in self._journeys.values()],
         }
         temporary = self.path.with_suffix(".tmp")
         temporary.write_text(

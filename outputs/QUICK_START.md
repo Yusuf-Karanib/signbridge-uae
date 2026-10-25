@@ -9,15 +9,15 @@ The full current control instructions are in `docs/CONTROL_GUIDE.md`.
 5. For stronger ASL training, use two or three people with 10 to 15 examples per class from each, or follow `docs/ASL_DATASET_IMPORT.md` to add licensed PopSign `game/train` clips for Hello, Help and Water.
 6. Record varied `OTHER / NO SIGN` examples for every person.
 7. Use a different Person ID for every person.
-8. Train the ASL model.
+8. Train the ASL model. After the 25 October update, retrain once to use corrected confidence training; saved samples remain available.
 9. Open **SignBridge agent** and press **Record a request sign**. ASL with English output is selected for this phase.
 10. Confirm the sign, choose the exact request and confirm the full sentence before speech.
 11. Open **Staff desk**, accept the new task, save a reply and choose **Mark service delivered**, **Mark wrong action** or **Cancel selected** honestly.
 12. Return to **SignBridge agent**. The guest confirms **resolved** or **still need help**. Only the guest's resolved confirmation counts as success.
 13. A task is local unless an administrator configured and enabled the webhook. Even then, delivery does not prove a staff member read it.
 14. Press **Continue with another sign** to keep the conversation memory, or **End and clear signer session** when finished. Ending the signer session does not silently mark the staff task successful.
-15. Use **Final test** with at least one completely new person; two or three is better.
-16. Press **Competition demo** for the focused guest-and-staff hotel presentation. This mode allows only `Help`, then check-in assistance, room/hotel service or interpreter request. Export the aggregate evidence report from **Staff desk** after real trials.
+15. Use **Final test** with completely new people. Enter the Tester ID, expected sign and condition, confirm testing permission, then choose **Record attempt** or **Import test video**. Imported clips never become training data. The report separates live and video results; poor visibility and failed camera captures still count.
+16. Press **Competition demo** for the focused guest-and-staff hotel presentation. This mode allows only `Help`, then check-in assistance, room/hotel service or interpreter request. Export the aggregate evidence report from **Staff desk** after real trials; it includes rejected input, manual fallback, abandoned journeys and full completion time.
 
 The clean sharing ZIP intentionally contains no participant data or personal trained model. On another computer, run setup and train or import consented landmark samples before expecting camera recognition.
 

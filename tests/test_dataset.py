@@ -10,6 +10,17 @@ from signbridge.landmarks import FEATURE_DIM
 
 
 class DatasetTests(unittest.TestCase):
+    def test_invalid_sequences_are_not_saved(self) -> None:
+        with TemporaryDirectory() as temp:
+            store = DatasetStore(Path(temp) / "samples", Path(temp) / "trash")
+            for sequence in (
+                np.zeros((2, FEATURE_DIM)),
+                np.full((SEQUENCE_LENGTH, FEATURE_DIM), np.inf),
+            ):
+                with self.assertRaisesRegex(ValueError, "invalid"):
+                    store.save_sample("asl", "help", "trainer", sequence)
+            self.assertEqual(store.load_records(), [])
+
     def test_sample_round_trip_and_recoverable_removal(self) -> None:
         with TemporaryDirectory() as temp:
             root = Path(temp)

@@ -5,7 +5,7 @@ See [`STARTUP_PROGRAMME_ROADMAP.md`](STARTUP_PROGRAMME_ROADMAP.md) for the
 current Hub71 Initiate, Access, Hub71+ AI, DCAI and Sandbox sequence. No separate
 features should be added merely to apply to another programme.
 
-## Rechecked verdict — 15 October 2026
+## Rechecked verdict — 25 October 2026
 
 Keep the project and category, but focus the competition demo on an ASL hotel-reception workflow where no accessible self-service option is assumed. Do not present the current build as a validated translator.
 
@@ -39,7 +39,9 @@ Ask the organizer in writing whether adapting this non-commercial detector into 
 - Persistent hotel-staff tasks, replies, guest-confirmed outcomes and an optional webhook.
 - A visible goal, task, notification, staff, guest-verification and session-clear progress trail.
 - Aggregate evidence export and local deletion controls.
-- Sixty automated tests pass, including the ASL-only scope and guarded PopSign training-folder importer.
+- Eighty-eight automated tests pass, including calibration, safe video testing, service evidence, recovery, the ASL-only scope and the guarded PopSign training-folder importer.
+- Final test accepts short videos from untouched signers, separately from training.
+- Journey evidence includes attempts that never create a task and time from the first attempt to guest resolution.
 
 Recognition is not ready for a competition claim:
 
@@ -74,7 +76,7 @@ The current build now shows this fixed, bounded lifecycle and records the guest'
 - At least 20 complete hotel-service trials.
 - Feedback from Deaf or UAE sign-language users, not only hearing developers.
 
-The current task report covers created tasks, staff completion time and guest-confirmed outcomes. Attempt-level evidence and full first-attempt-to-outcome timing still need to be added.
+The current report includes created tasks, staff completion time, guest-confirmed outcomes, rejected input, manual fallback and journeys that end without a task. New journeys have full first-attempt-to-resolution timing; older tasks are explicitly identified as missing that history.
 
 ## Privacy rules
 
@@ -86,13 +88,13 @@ The current task report covers created tasks, staff completion time and guest-co
 
 ## Exact priority
 
-1. On 19 October, enter Howspace, record the real deadline and ask the prior-prototype eligibility question.
-2. Add attempt-level evidence and full-workflow timing.
-3. Add short-video import to **Final test** so remote unseen users can participate without their clips entering training.
-4. Obtain fluent-signer and Deaf-user validation.
-5. Improve and pass unseen-person ASL tests first. Restart Emirati work only after useful ASL feedback and access to fluent Emirati reviewers.
-6. Test one real hotel-staff endpoint and run 20 complete hotel-service trials.
-7. Only then produce the summary report, pitch deck and demo video.
+1. Open Howspace, record the actual portal deadline and confirm the prior-prototype eligibility question; no answer has been recorded here.
+2. Retrain ASL using the corrected confidence pipeline; saved samples are retained.
+3. Obtain fluent-signer and Deaf-user validation, especially for Help.
+4. Use live or imported Final-test attempts from entirely separate people. Keep failed attempts in the evidence.
+5. Run 20 complete desk trials, compare with a simple accessible help button, and test one real staff endpoint when a partner is available.
+6. Use the existing evidence export to prepare the summary report, pitch deck and demo video.
+7. Resume Emirati work only after useful ASL feedback and access to fluent Emirati reviewers.
 
 ## Do not build or claim now
 

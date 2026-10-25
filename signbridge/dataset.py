@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from signbridge.config import SAMPLES_DIR, TRASH_DIR
+from signbridge.config import SAMPLES_DIR, TRASH_DIR, SEQUENCE_LENGTH
 from signbridge.landmarks import FEATURE_DIM, FEATURE_VERSION
 
 
@@ -56,6 +56,8 @@ class DatasetStore:
         language = self.safe_component(language)
         label = self.safe_component(label)
         sequence = np.asarray(sequence, dtype=np.float32)
+        if sequence.shape != (SEQUENCE_LENGTH, FEATURE_DIM) or not np.isfinite(sequence).all():
+            raise ValueError("The landmark sample is incomplete or invalid. Record it again.")
         timestamp = datetime.now(timezone.utc)
         destination = self.samples_dir / language / label
         destination.mkdir(parents=True, exist_ok=True)
@@ -73,7 +75,10 @@ class DatasetStore:
             "consent_confirmed": bool(consent_confirmed),
             "capture_source": str(capture_source).strip() or "unknown",
         }
-        np.savez_compressed(path, sequence=sequence, metadata=json.dumps(metadata))
+        temporary = path.with_suffix(".tmp")
+        with temporary.open("wb") as output:
+            np.savez_compressed(output, sequence=sequence, metadata=json.dumps(metadata))
+        temporary.replace(path)
         return path
 
     def load_records(self, language: str | None = None) -> list[SampleRecord]:
@@ -87,7 +92,14 @@ class DatasetStore:
                     sequence = np.asarray(payload["sequence"], dtype=np.float32)
                     metadata_raw = payload["metadata"].item()
                 metadata = json.loads(str(metadata_raw))
+                if not isinstance(metadata, dict) or not all(
+                    isinstance(metadata.get(key), str)
+                    for key in ("language", "label", "person_id")
+                ) or not isinstance(metadata.get("quality", {}), dict):
+                    continue
                 if metadata.get("feature_version") != FEATURE_VERSION:
+                    continue
+                if sequence.shape != (SEQUENCE_LENGTH, FEATURE_DIM) or not np.isfinite(sequence).all():
                     continue
                 records.append(
                     SampleRecord(
@@ -99,7 +111,7 @@ class DatasetStore:
                         metadata=metadata,
                     )
                 )
-            except (OSError, KeyError, ValueError, json.JSONDecodeError):
+            except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
                 continue
         return records
 
@@ -111,6 +123,13 @@ class DatasetStore:
 
     def people(self, language: str) -> set[str]:
         return {record.person_id for record in self.load_records(language)}
+
+    def video_hashes(self, language: str) -> set[str]:
+        return {
+            str(record.metadata.get("quality", {}).get("video_sha256"))
+            for record in self.load_records(language)
+            if record.metadata.get("quality", {}).get("video_sha256")
+        }
 
     def move_last_to_trash(self, language: str, label: str) -> Path | None:
         candidates = [

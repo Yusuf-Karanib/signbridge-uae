@@ -96,6 +96,30 @@ class AssistanceUiTests(unittest.TestCase):
         self.assertEqual(window.assist_result_label.text(), "Not sure")
         self.assertFalse(window.assist_confirm_sign_button.isVisible())
         speak.assert_not_called()
+        report = window.reception_agent.task_store.journey_summary()
+        self.assertEqual(report["camera_rejected"], 1)
+        self.assertEqual(report["journeys_with_tasks"], 0)
+        window.close()
+
+    def test_failed_task_write_keeps_request_confirmable_and_silent(self) -> None:
+        window = self._window()
+        window.assist_manual_sign.setCurrentIndex(window.assist_manual_sign.findData("help"))
+        window._use_manual_assistance_sign()
+        window._confirm_assistance_sign()
+        window.assistance_session.choose_request("hotel_service")
+        with (
+            patch.object(window.reception_agent.task_store, "_save", side_effect=OSError("disk full")),
+            patch.object(window.speech, "speak") as speak,
+        ):
+            window._send_assistance_request()
+        self.assertEqual(window.assistance_session.stage, AssistanceStage.CONFIRM_REQUEST)
+        self.assertEqual(window.assistance_session.turns, [])
+        self.assertEqual(window.reception_agent.task_store.list_tasks(), [])
+        speak.assert_not_called()
+        with patch.object(window.speech, "speak"):
+            window._send_assistance_request()
+        self.assertEqual(len(window.reception_agent.task_store.list_tasks()), 1)
+        self.assertEqual(window.reception_agent.task_store.journey_summary()["journeys_with_tasks"], 1)
         window.close()
 
     def test_second_turn_can_use_the_previous_staff_reply(self) -> None:

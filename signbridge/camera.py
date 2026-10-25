@@ -142,6 +142,7 @@ class CameraWorker(QThread):
     gesture_ready = Signal(object)
     capture_state = Signal(str, int)
     sequence_ready = Signal(object, object, object)
+    capture_failed = Signal(object, str)
 
     def __init__(self, camera_index: int = 0, parent: Any = None):
         super().__init__(parent)
@@ -169,8 +170,20 @@ class CameraWorker(QThread):
 
     def cancel_capture(self) -> None:
         with self._state_lock:
+            request = self._capture_request
             self._capture_request = None
         self.capture_state.emit("Ready", 0)
+        if request is not None:
+            self.capture_failed.emit(request["context"], "Recording was cancelled.")
+
+    def _expire_capture(self) -> None:
+        """Recover even when the asynchronous tracker stops returning results."""
+        with self._state_lock:
+            request = self._capture_request
+            if request is None or time.monotonic() < request["capture_end"] + 3.0:
+                return
+            self._capture_request = None
+        self.capture_failed.emit(request["context"], "Hand tracking did not finish the recording.")
 
     def _capture_is_pending(self) -> bool:
         with self._state_lock:
@@ -209,6 +222,7 @@ class CameraWorker(QThread):
 
     def _advance_capture(self, feature: np.ndarray, hand_present: bool) -> None:
         completed: tuple[np.ndarray, dict, dict] | None = None
+        failed_context: dict | None = None
         state_to_emit: tuple[str, int] | None = None
         with self._state_lock:
             request = self._capture_request
@@ -244,12 +258,15 @@ class CameraWorker(QThread):
                     completed = (sequence, context, quality)
                 else:
                     state_to_emit = ("No frames captured. Try again.", 0)
+                    failed_context = context
 
         if state_to_emit:
             self.capture_state.emit(*state_to_emit)
         if completed:
             self.capture_state.emit("Capture complete", 100)
             self.sequence_ready.emit(*completed)
+        if failed_context is not None:
+            self.capture_failed.emit(failed_context, "No usable camera frames were captured.")
 
     def run(self) -> None:
         missing_models = [
@@ -389,6 +406,7 @@ class CameraWorker(QThread):
                     f"Camera {self.camera_index} ready • {backend_name}", True
                 )
                 while not self._stop_event.is_set() and not callback_failed.is_set():
+                    self._expire_capture()
                     ok, frame = camera.read()
                     if not ok:
                         self.camera_status.emit("Camera frame was lost.", False)
@@ -492,4 +510,5 @@ class CameraWorker(QThread):
             self.camera_status.emit(f"Camera processing stopped: {exc}", False)
         finally:
             camera.release()
+            self.cancel_capture()
 

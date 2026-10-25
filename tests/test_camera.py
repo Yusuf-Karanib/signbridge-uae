@@ -13,9 +13,38 @@ from signbridge.camera import (
     resize_for_tracking,
     smooth_hand_tracks,
 )
+from signbridge.config import CAPTURE_SECONDS, COUNTDOWN_SECONDS
+from signbridge.landmarks import FEATURE_DIM
 
 
 class CameraWorkerTests(unittest.TestCase):
+    def test_stalled_tracker_releases_capture_and_reports_failure_once(self) -> None:
+        worker = CameraWorker()
+        failures = []
+        worker.capture_failed.connect(lambda context, message: failures.append((context, message)))
+        with patch("signbridge.camera.time.monotonic", return_value=10.0):
+            self.assertTrue(worker.request_capture({"purpose": "evaluate"}))
+        with patch(
+            "signbridge.camera.time.monotonic",
+            return_value=10.0 + COUNTDOWN_SECONDS + CAPTURE_SECONDS + 4.0,
+        ):
+            worker._expire_capture()
+            worker._expire_capture()
+        self.assertFalse(worker._capture_is_pending())
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(failures[0][0]["purpose"], "evaluate")
+
+    def test_empty_capture_reports_failure_instead_of_leaving_controls_locked(self) -> None:
+        worker = CameraWorker()
+        failures = []
+        worker.capture_failed.connect(lambda context, message: failures.append(context))
+        with patch("signbridge.camera.time.monotonic", return_value=10.0):
+            worker.request_capture({"purpose": "assist"})
+        with patch("signbridge.camera.time.monotonic", return_value=20.0):
+            worker._advance_capture(np.zeros(FEATURE_DIM), False)
+        self.assertEqual(failures, [{"purpose": "assist"}])
+        self.assertFalse(worker._capture_is_pending())
+
     def test_camera_defaults_do_not_force_an_unsupported_video_format(self) -> None:
         class FakeCamera:
             def __init__(self) -> None:

@@ -2,9 +2,11 @@
 
 Checked against official sources on **21 October 2026**.
 
+The technical review on 25 October added remote final-video testing, complete service-attempt evidence and reliability fixes; 88 software tests now pass. See `REVIEW_2026_10_25.md`. This does not change the startup stage: user validation, buyer evidence and a viable company plan are still missing. Programme terms below retain their 21 October verification date.
+
 ## Simple decision
 
-SignBridge is technically allowed to apply to **Hub71 Initiate**, but it should not submit a rushed application yet. Initiate is the correct programme once the project has basic customer evidence, a clear buyer, a focused demonstration, a business model and a believable Abu Dhabi plan.
+SignBridge fits **Hub71 Initiate's published early-stage focus**. Programme and venture-builder acceptance remain unconfirmed. Prepare a focused application with initial customer evidence, a clear buyer, a demonstration, a proposed business model and a believable Abu Dhabi plan. These are preparation goals, not a claim that Initiate formally requires a finished MVP or paying customers.
 
 Do **not** apply to Hub71 Access, the current DCAI government accelerator or Hub71 Sandbox yet. SignBridge does not have the customer traction, deployment evidence or regulatory need those routes expect.
 
@@ -91,7 +93,7 @@ SignBridge should consider it only if, for example, an actual government or venu
 
 ## What SignBridge has today
 
-The repository and test suite were checked on 21 October 2026. All **60 automated tests pass**.
+On 21 October 2026 the repository had 60 passing tests. The 25 October technical review expanded this to **88 passing tests** and added remote final-video testing and full service-attempt evidence.
 
 - A working Windows webcam prototype.
 - Four isolated ASL candidates with English text and speech.

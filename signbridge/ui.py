@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 import cv2
+import numpy as np
 from PySide6.QtCore import QThread, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCloseEvent, QFont, QImage, QPixmap
 from PySide6.QtWidgets import (
@@ -59,10 +60,12 @@ from signbridge.config import (
     PERSONAL_DEMO_SAMPLES_PER_CLASS,
     PROJECT_ROOT,
     RECOMMENDED_SAMPLES_PER_CLASS,
+    SEQUENCE_LENGTH,
     UNKNOWN_LABEL,
 )
 from signbridge.dataset import DatasetStore
 from signbridge.evaluation import EvaluationStore
+from signbridge.landmarks import FEATURE_DIM
 from signbridge.integrations import (
     AgentSettingsStore,
     DeliveryResult,
@@ -350,16 +353,19 @@ class PopSignImportWorker(QThread):
         clips: tuple[PopSignClip, ...],
         store: DatasetStore,
         parent: QWidget | None = None,
+        reserved_video_hashes: set[str] | None = None,
     ) -> None:
         super().__init__(parent)
         self.clips = clips
         self.store = store
+        self.reserved_video_hashes = set(reserved_video_hashes or ())
 
     def run(self) -> None:
         saved = 0
         skipped = 0
         errors: list[str] = []
         total = len(self.clips)
+        known_hashes = self.store.video_hashes("asl") | self.reserved_video_hashes
         try:
             for index, clip in enumerate(self.clips, start=1):
                 if self.isInterruptionRequested():
@@ -369,6 +375,11 @@ class PopSignImportWorker(QThread):
                     imported = extract_training_video(
                         clip.path, should_stop=self.isInterruptionRequested
                     )
+                    video_hash = str(imported.quality.get("video_sha256", ""))
+                    if video_hash and video_hash in known_hashes:
+                        skipped += 1
+                        errors.append(f"{clip.path.name}: duplicate or reserved final-test clip")
+                        continue
                     ratio = float(imported.quality.get("hand_presence_ratio", 0.0))
                     if ratio < MIN_HAND_PRESENCE_RATIO:
                         skipped += 1
@@ -396,6 +407,8 @@ class PopSignImportWorker(QThread):
                         capture_source=POPSIGN_CAPTURE_SOURCE,
                     )
                     saved += 1
+                    if video_hash:
+                        known_hashes.add(video_hash)
                 except InterruptedError:
                     return
                 except Exception as exc:
@@ -426,11 +439,13 @@ class MainWindow(QMainWindow):
         settings_store: AgentSettingsStore | None = None,
         webhook_connector: StaffWebhookConnector | None = None,
         auto_start_camera: bool = True,
+        dataset_store: DatasetStore | None = None,
+        evaluation_store: EvaluationStore | None = None,
     ) -> None:
         super().__init__()
         self.vocabulary = Vocabulary.load()
-        self.dataset = DatasetStore()
-        self.evaluation = EvaluationStore()
+        self.dataset = dataset_store or DatasetStore()
+        self.evaluation = evaluation_store or EvaluationStore()
         self.validation = ValidationStore()
         self.speech = SpeechService(self)
         self.model_cache: dict[str, dict | None] = {}
@@ -458,6 +473,8 @@ class MainWindow(QMainWindow):
         self.assistance_result_confidence: float | None = None
         self.assistance_input_method = "unknown"
         self.assistance_correction_used = False
+        self.assistance_journey_id: str | None = None
+        self._closing = False
         self.demo_mode_enabled = False
         self.training_worker: TrainingWorker | None = None
         self.video_import_worker: VideoImportWorker | None = None
@@ -641,7 +658,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(14)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setWidget(page)
         return scroll, layout
 
@@ -656,6 +673,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
         heading = QLabel(title)
         heading.setObjectName("sectionTitle")
+        heading.setWordWrap(True)
         layout.addWidget(heading)
         if hint:
             description = QLabel(hint)
@@ -1014,12 +1032,31 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.eval_condition, 3, 1)
         grid.setColumnStretch(1, 1)
         setup_layout.addLayout(grid)
+        self.evaluation_consent_checkbox = QCheckBox(
+            "Permission confirmed for this person or clip"
+        )
+        setup_layout.addWidget(self.evaluation_consent_checkbox)
         layout.addWidget(setup_card)
 
-        self.record_evaluation_button = QPushButton("Record final-test attempt")
+        self.record_evaluation_button = QPushButton("Record attempt")
+        self.record_evaluation_button.setToolTip("Record one live final-test attempt")
         self.record_evaluation_button.setObjectName("primary")
         self.record_evaluation_button.setMinimumHeight(52)
-        layout.addWidget(self.record_evaluation_button)
+        self.import_evaluation_video_button = QPushButton("Import test video")
+        self.import_evaluation_video_button.setToolTip("Test one untouched sign clip without adding it to training")
+        self.import_evaluation_video_button.setMinimumHeight(52)
+        test_actions = QHBoxLayout()
+        test_actions.addWidget(self.record_evaluation_button, 1)
+        test_actions.addWidget(self.import_evaluation_video_button, 1)
+        layout.addLayout(test_actions)
+        video_help = QLabel(
+            "Choose one short clip of the expected sign, from someone never used for training. "
+            "Only the test result is saved; the clip is not copied or added to training. "
+            "Use the same Tester ID for the same person every time."
+        )
+        video_help.setWordWrap(True)
+        video_help.setObjectName("muted")
+        layout.addWidget(video_help)
 
         result_card, result_layout = self._section_card("Latest attempt")
         self.evaluation_result = QLabel("No final-test attempt yet")
@@ -1047,8 +1084,8 @@ class MainWindow(QMainWindow):
         self.evaluation_table.horizontalHeader().setSectionResizeMode(
             2, QHeaderView.ResizeMode.ResizeToContents
         )
-        self.evaluation_table.setMinimumHeight(260)
-        self.evaluation_table.setMaximumHeight(310)
+        self.evaluation_table.setMinimumHeight(220)
+        self.evaluation_table.setMaximumHeight(260)
         score_layout.addWidget(self.evaluation_table)
 
         self.evaluation_summary = QLabel()
@@ -1435,6 +1472,7 @@ class MainWindow(QMainWindow):
         self.camera_worker.gesture_ready.connect(self._on_control_gesture)
         self.camera_worker.capture_state.connect(self._on_capture_state)
         self.camera_worker.sequence_ready.connect(self._on_sequence_ready)
+        self.camera_worker.capture_failed.connect(self._on_capture_failed)
         self.speech.status_changed.connect(self.voice_status.setText)
         self.speech.status_changed.connect(self.assist_voice_status.setText)
 
@@ -1447,6 +1485,9 @@ class MainWindow(QMainWindow):
         self.train_sign.currentIndexChanged.connect(self._refresh_training_status)
         self.person_id.textChanged.connect(
             lambda _text: self.training_consent_checkbox.setChecked(False)
+        )
+        self.eval_person_id.textChanged.connect(
+            lambda _text: self.evaluation_consent_checkbox.setChecked(False)
         )
         self.capture_use_button.clicked.connect(self._capture_for_use)
         self.assist_capture_button.clicked.connect(self._capture_for_assistance)
@@ -1503,6 +1544,7 @@ class MainWindow(QMainWindow):
         )
         self.import_popsign_button.clicked.connect(self._import_popsign_folder)
         self.record_evaluation_button.clicked.connect(self._capture_evaluation_sample)
+        self.import_evaluation_video_button.clicked.connect(self._import_evaluation_video)
         self.delete_last_button.clicked.connect(self._remove_last_sample)
         self.train_model_button.clicked.connect(self._train_model)
         self.mark_reviewed_button.clicked.connect(self._mark_sign_reviewed)
@@ -1658,6 +1700,7 @@ class MainWindow(QMainWindow):
         self._refresh_staff_tab()
         self._refresh_control_ui()
         self._render_history()
+        self._set_capture_buttons(self.capture_controls_enabled)
 
     def _refresh_use_tab(self) -> None:
         language = self._combo_language(self.use_language)
@@ -1680,11 +1723,13 @@ class MainWindow(QMainWindow):
             )
         else:
             metrics = bundle.get("metrics", {})
-            if metrics.get("validated_on_unseen_people"):
+            if metrics.get("development_evaluated"):
                 score = metrics.get("balanced_accuracy", 0.0) * 100
-                model_text = f"Model trained • unseen-person score: {score:.1f}%"
+                model_text = f"Training check: {score:.1f}% • independent Final test still needed"
             else:
                 model_text = "Model trained • unseen-person testing is still required."
+            if not bundle.get("recognition_enabled", True):
+                model_text = "Camera acceptance paused: training checks failed. Add varied samples and retrain."
         self.use_model_status.setProperty("ready", bundle is not None)
         self.use_model_status.style().unpolish(self.use_model_status)
         self.use_model_status.style().polish(self.use_model_status)
@@ -1707,8 +1752,32 @@ class MainWindow(QMainWindow):
         self._refresh_assistance_tab()
 
     def _reset_assistance_evidence(self) -> None:
+        if self.assistance_journey_id is not None:
+            try:
+                self.reception_agent.task_store.end_journey(self.assistance_journey_id)
+            except (OSError, RuntimeError, ValueError) as exc:
+                self.assistance_feedback = f"Service evidence could not be saved: {exc}"
+            self.assistance_journey_id = None
         self.assistance_input_method = "unknown"
         self.assistance_correction_used = False
+
+    def _ensure_assistance_journey(self) -> str:
+        if self.assistance_journey_id is None:
+            self.assistance_journey_id = self.reception_agent.task_store.start_journey(
+                self.assistance_session.language
+            )
+        return self.assistance_journey_id
+
+    def _record_assistance_event(self, event: str) -> bool:
+        try:
+            self.reception_agent.task_store.record_journey_event(
+                self._ensure_assistance_journey(), event
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            self.assistance_feedback = f"Service evidence could not be saved: {exc}"
+            self._render_assistance()
+            return False
+        return True
 
     def _populate_assistance_signs(self) -> None:
         language = self._combo_language(self.assist_language)
@@ -1745,10 +1814,12 @@ class MainWindow(QMainWindow):
         else:
             metrics = bundle.get("metrics", {})
             model_text = (
-                f"Camera model ready • unseen-person score: {metrics.get('balanced_accuracy', 0.0) * 100:.1f}%"
-                if metrics.get("validated_on_unseen_people")
+                f"Training check: {metrics.get('balanced_accuracy', 0.0) * 100:.1f}% • Final test still needed"
+                if metrics.get("development_evaluated")
                 else "Camera model ready • unseen-person testing is still required."
             )
+            if not bundle.get("recognition_enabled", True):
+                model_text = "Camera acceptance paused: training checks failed. Add varied samples and retrain."
         self.assist_model_status.setProperty("ready", bundle is not None)
         self.assist_model_status.style().unpolish(self.assist_model_status)
         self.assist_model_status.style().polish(self.assist_model_status)
@@ -1792,7 +1863,7 @@ class MainWindow(QMainWindow):
             stage == AssistanceStage.CONFIRM_SIGN
         )
         self.assist_retry_button.setVisible(stage == AssistanceStage.CONFIRM_SIGN)
-        manual_allowed = stage in (
+        manual_allowed = self.capture_controls_enabled and stage in (
             AssistanceStage.READY,
             AssistanceStage.CONFIRM_SIGN,
         )
@@ -2071,6 +2142,18 @@ class MainWindow(QMainWindow):
             f"false-action rate {percent(summary['false_action_rate'])} • "
             f"correction rate {percent(summary['correction_rate'])}"
         )
+        journeys = self.reception_agent.task_store.journey_summary()
+        resolution_time = journeys["median_first_attempt_to_resolution_seconds"]
+        resolution_text = "pending" if resolution_time is None else f"{resolution_time:.0f}s"
+        self.staff_evidence_summary.setText(
+            self.staff_evidence_summary.text()
+            + f"\nService journeys {journeys['journeys_started']} • "
+            f"camera rejected {journeys['camera_rejected']}/{journeys['camera_attempts']} • "
+            f"manual selections {journeys['manual_selections']} • "
+            f"ended without a task {journeys['ended_without_task']}"
+            + f"\nCompletion from first attempt: {percent(journeys['task_completion_from_first_attempt'])} • "
+            f"median first attempt to guest resolution: {resolution_text}"
+        )
         load_error = self.reception_agent.task_store.load_error
         if load_error:
             self.staff_action_status.setText(load_error)
@@ -2270,18 +2353,19 @@ class MainWindow(QMainWindow):
         answer = QMessageBox.question(
             self,
             "Delete all task history",
-            "This permanently deletes every local task, status and staff reply and clears the current signer session. Continue?",
+            "This permanently deletes every local task, service-attempt record, status and staff reply and clears the current signer session. Continue?",
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
         try:
             removed = self.reception_agent.task_store.clear_all()
-        except RuntimeError as exc:
+        except (OSError, RuntimeError) as exc:
             self.staff_action_status.setText(str(exc))
             return
         language = self._combo_language(self.assist_language)
         self.assistance_session.reset(language)
         self.assistance_action_results.clear()
+        self.assistance_journey_id = None
         self._reset_assistance_evidence()
         self.assistance_feedback = "Session and local task history cleared."
         self.assistance_result_text = "—"
@@ -2405,12 +2489,14 @@ class MainWindow(QMainWindow):
             parts.append("personalized data only")
         if bundle:
             metrics = bundle.get("metrics", {})
-            if metrics.get("validated_on_unseen_people"):
+            if metrics.get("development_evaluated"):
                 parts.append(
-                    f"unseen-person score {metrics.get('balanced_accuracy', 0.0) * 100:.1f}%"
+                    f"training check {metrics.get('balanced_accuracy', 0.0) * 100:.1f}% (not Final test)"
                 )
             else:
                 parts.append("unseen-person test pending")
+            if not bundle.get("recognition_enabled", True):
+                parts.append("no safe confidence threshold found; camera acceptance paused")
         self.training_status.setText(" • ".join(parts))
 
     def _refresh_evaluation_tab(self) -> None:
@@ -2433,6 +2519,7 @@ class MainWindow(QMainWindow):
         bundle = self.model_cache.get(language)
         if bundle is None:
             self.record_evaluation_button.setEnabled(False)
+            self.import_evaluation_video_button.setEnabled(False)
             self.evaluation_summary.setText(
                 "Train this language first. Final testing will then start with an empty report."
             )
@@ -2479,6 +2566,7 @@ class MainWindow(QMainWindow):
             " • ".join(
                 (
                     f"Current-model attempts: {summary['attempts']}",
+                    f"live: {summary['live_attempts']}; video: {summary['video_attempts']}",
                     f"untouched people: {summary['people']}",
                     f"balanced accuracy: {percent(summary['balanced_accuracy'])}",
                     f"accepted precision: {percent(summary['accepted_precision'])}",
@@ -2487,7 +2575,7 @@ class MainWindow(QMainWindow):
                 )
             )
         )
-        self.record_evaluation_button.setEnabled(self.camera_ok)
+        self._set_capture_buttons(self.capture_controls_enabled)
 
     @staticmethod
     def _gesture_name_for_people(name: str | None) -> str:
@@ -2831,7 +2919,6 @@ class MainWindow(QMainWindow):
 
     def _on_camera_status(self, message: str, ok: bool) -> None:
         self.camera_ok = ok
-        self.capture_controls_enabled = True
         self.camera_performance_label.setProperty("warning", False)
         self.camera_performance_label.style().unpolish(self.camera_performance_label)
         self.camera_performance_label.style().polish(self.camera_performance_label)
@@ -2846,18 +2933,7 @@ class MainWindow(QMainWindow):
         if not ok:
             self.camera_preview.clear()
             self.camera_preview.setText(message)
-        self.capture_use_button.setEnabled(
-            ok
-            and self.model_cache.get(self._combo_language(self.use_language))
-            is not None
-        )
-        self._render_assistance()
-        self.record_training_button.setEnabled(ok)
-        self.record_evaluation_button.setEnabled(
-            ok
-            and self.model_cache.get(self._combo_language(self.eval_language))
-            is not None
-        )
+        self._set_capture_buttons(True)
         if not ok and self.control_enabled:
             self._disable_computer_control("The camera stopped.")
         else:
@@ -2867,7 +2943,31 @@ class MainWindow(QMainWindow):
         self.capture_state_label.setText(message)
         self.capture_progress.setValue(progress)
 
+    def _on_capture_failed(self, context: dict, message: str) -> None:
+        if self._closing:
+            return
+        self._set_capture_buttons(True)
+        self.capture_state_label.setText(message)
+        self.capture_progress.setValue(0)
+        if context.get("purpose") == "assist":
+            self._record_assistance_event("camera_rejected")
+            self.assistance_correction_used = True
+            self.assistance_result_text = "Recording failed"
+            self.assistance_feedback = message + " Try again or use the manual fallback."
+            self._render_assistance()
+        elif context.get("purpose") == "evaluate":
+            self.evaluation_result.setText("Camera recording failed. This is recorded as an unsuccessful attempt.")
+            self._record_evaluation_result(
+                np.zeros((SEQUENCE_LENGTH, FEATURE_DIM), dtype=np.float32), context, 0.0,
+                {"capture_failed": True},
+            )
+
     def _set_capture_buttons(self, enabled: bool) -> None:
+        imports_idle = not any(
+            worker is not None and worker.isRunning()
+            for worker in (self.video_import_worker, self.popsign_import_worker, self.training_worker)
+        )
+        enabled = enabled and imports_idle and not self._closing and not self.camera_worker._capture_is_pending()
         self.capture_controls_enabled = enabled
         use_has_model = self.model_cache.get(self._combo_language(self.use_language)) is not None
         assistance_has_model = (
@@ -2897,6 +2997,13 @@ class MainWindow(QMainWindow):
         self.record_evaluation_button.setEnabled(
             enabled and self.camera_ok and evaluation_has_model
         )
+        self.import_evaluation_video_button.setEnabled(
+            enabled and imports_idle and evaluation_has_model
+        )
+        self.train_model_button.setEnabled(enabled)
+        self.delete_last_button.setEnabled(enabled)
+        self.privacy_delete_person_button.setEnabled(enabled)
+        self._render_assistance()
 
     def _capture_for_use(self) -> None:
         language = self._combo_language(self.use_language)
@@ -2923,6 +3030,12 @@ class MainWindow(QMainWindow):
             )
             return
         if self.assistance_session.stage != AssistanceStage.READY:
+            return
+        try:
+            self._ensure_assistance_journey()
+        except (OSError, RuntimeError, ValueError) as exc:
+            self.assistance_feedback = f"The local service record could not be opened: {exc}"
+            self._render_assistance()
             return
         if self.camera_worker.request_capture(
             {"purpose": "assist", "language": language}
@@ -3017,12 +3130,40 @@ class MainWindow(QMainWindow):
         self.video_import_worker.start()
 
     def _video_import_complete(self, sequence: object, quality: dict) -> None:
+        if self._closing:
+            return
         context = self.video_import_context
         if context is None:
-            self._video_import_failed("The selected training details were lost.")
+            self._video_import_failed("The selected clip details were lost.")
+            return
+        video_hash = str(quality.get("video_sha256", ""))
+        language = str(context["language"])
+        if context["purpose"] == "evaluate":
+            bundle = self.model_cache.get(language) or {}
+            training_hashes = self.dataset.video_hashes(language) | set(
+                bundle.get("training_video_hashes", ())
+            )
+            if video_hash and video_hash in training_hashes:
+                self._video_import_failed("This clip was used for training. Choose an untouched test video.")
+                return
+            if video_hash and video_hash in self.evaluation.video_hashes(
+                language, str(bundle.get("created_at", "unknown-model"))
+            ):
+                self._video_import_failed("This clip was already tested with this model. It cannot count twice.")
+                return
+        elif video_hash and (
+            video_hash in self.evaluation.video_hashes(language)
+            or video_hash in self.dataset.video_hashes(language)
+        ):
+            self._video_import_failed(
+                "This clip is already in training or final testing. Use a new recording."
+            )
             return
         self._on_sequence_ready(sequence, context, quality)
-        if float(quality.get("hand_presence_ratio", 0.0)) >= MIN_HAND_PRESENCE_RATIO:
+        if context["purpose"] == "train" and (
+            float(quality.get("hand_presence_ratio", 0.0)) >= MIN_HAND_PRESENCE_RATIO
+            or context["label"] == UNKNOWN_LABEL
+        ):
             QMessageBox.information(
                 self,
                 "Video sample imported",
@@ -3031,7 +3172,10 @@ class MainWindow(QMainWindow):
 
     def _video_import_failed(self, message: str) -> None:
         self._set_capture_buttons(True)
-        self.training_status.setText("Video was not imported")
+        if (self.video_import_context or {}).get("purpose") == "evaluate":
+            self.evaluation_result.setText("Video was not tested: " + message)
+        else:
+            self.training_status.setText("Video was not imported")
         QMessageBox.warning(self, "Video import failed", message)
 
     def _video_import_finished(self) -> None:
@@ -3093,7 +3237,8 @@ class MainWindow(QMainWindow):
             return
 
         self.popsign_import_worker = PopSignImportWorker(
-            clips, self.dataset, self
+            clips, self.dataset, self,
+            reserved_video_hashes=self.evaluation.video_hashes("asl"),
         )
         self.popsign_import_worker.progress_changed.connect(
             self._popsign_import_progress
@@ -3119,6 +3264,8 @@ class MainWindow(QMainWindow):
         )
 
     def _popsign_import_complete(self, result: dict) -> None:
+        if self._closing:
+            return
         saved = int(result.get("saved", 0))
         skipped = int(result.get("skipped", 0))
         self._refresh_training_status()
@@ -3141,7 +3288,7 @@ class MainWindow(QMainWindow):
             worker.deleteLater()
         self._set_capture_buttons(True)
 
-    def _capture_evaluation_sample(self) -> None:
+    def _evaluation_context(self) -> dict | None:
         language = self._combo_language(self.eval_language)
         if self.model_cache.get(language) is None:
             QMessageBox.information(
@@ -3149,41 +3296,82 @@ class MainWindow(QMainWindow):
                 "Training needed",
                 "Train this language before starting the final test.",
             )
-            return
+            return None
         person = self.eval_person_id.text().strip()
         if not person:
             QMessageBox.warning(
                 self, "Tester ID needed", "Enter a short ID for this final-test person."
             )
             self.eval_person_id.setFocus()
-            return
+            return None
         try:
             normalized_person = DatasetStore.safe_component(person)
         except ValueError as exc:
             QMessageBox.warning(self, "Tester ID needed", str(exc))
-            return
+            return None
         training_people = {
             item.casefold() for item in self.dataset.people(language)
         }
+        training_people.update(
+            str(item).casefold()
+            for item in self.model_cache[language].get("people", ())
+        )
         if normalized_person.casefold() in training_people:
             QMessageBox.warning(
                 self,
                 "This is not an untouched tester",
                 "This person already has training data. Use somebody who was never recorded for training.",
             )
-            return
-        context = {
+            return None
+        if not self.evaluation_consent_checkbox.isChecked():
+            QMessageBox.warning(
+                self, "Testing permission needed",
+                "Confirm that the person agreed to testing and that you may use their recording.",
+            )
+            return None
+        return {
             "purpose": "evaluate",
             "language": language,
             "label": str(self.eval_expected_sign.currentData()),
             "person_id": normalized_person,
             "condition": self.eval_condition.currentText(),
+            "model_created_at": str(self.model_cache[language].get("created_at", "unknown-model")),
+            "capture_source": "live_camera",
         }
+
+    def _capture_evaluation_sample(self) -> None:
+        context = self._evaluation_context()
+        if context is None:
+            return
         if self.camera_worker.request_capture(context):
             self._set_capture_buttons(False)
             self.evaluation_result.setText("Get ready and perform the expected sign once")
 
+    def _import_evaluation_video(self) -> None:
+        if not self.capture_controls_enabled:
+            return
+        context = self._evaluation_context()
+        if context is None:
+            return
+        filename, _filter = QFileDialog.getOpenFileName(
+            self, "Choose one untouched final-test video", "",
+            "Video files (*.mp4 *.mov *.avi *.mkv *.m4v *.webm)",
+        )
+        if not filename:
+            return
+        context["capture_source"] = "imported_video"
+        self.video_import_context = context
+        self.video_import_worker = VideoImportWorker(Path(filename), self)
+        self.video_import_worker.complete.connect(self._video_import_complete)
+        self.video_import_worker.failed.connect(self._video_import_failed)
+        self.video_import_worker.finished.connect(self._video_import_finished)
+        self._set_capture_buttons(False)
+        self.evaluation_result.setText("Reading the video and testing it with the current model…")
+        self.video_import_worker.start()
+
     def _on_sequence_ready(self, sequence: Any, context: dict, quality: dict) -> None:
+        if self._closing:
+            return
         self._set_capture_buttons(True)
         ratio = float(quality.get("hand_presence_ratio", 0.0))
         purpose = context.get("purpose")
@@ -3191,7 +3379,7 @@ class MainWindow(QMainWindow):
         # Final testing must include every attempt. Discarding a difficult capture
         # would make the reported accuracy look better than the real system.
         if purpose == "evaluate":
-            self._record_evaluation_result(sequence, context, ratio)
+            self._record_evaluation_result(sequence, context, ratio, quality)
             self.capture_progress.setValue(0)
             return
 
@@ -3207,6 +3395,7 @@ class MainWindow(QMainWindow):
             self.capture_state_label.setText("Try again with hands visible")
             self.capture_progress.setValue(0)
             if purpose == "assist":
+                self._record_assistance_event("camera_rejected")
                 self.assistance_correction_used = True
                 self.assistance_feedback = (
                     "No request was accepted. Keep both hands inside the frame and try again."
@@ -3235,7 +3424,7 @@ class MainWindow(QMainWindow):
         bundle = self.model_cache.get(language)
         if bundle is None:
             return
-        prediction = predict_sequence(bundle, sequence)
+        prediction = predict_sequence(bundle, sequence, hand_presence_ratio=ratio)
         if purpose == "assist":
             self._show_assistance_prediction(language, prediction)
         else:
@@ -3243,7 +3432,8 @@ class MainWindow(QMainWindow):
         self.capture_progress.setValue(0)
 
     def _record_evaluation_result(
-        self, sequence: Any, context: dict, hand_presence_ratio: float
+        self, sequence: Any, context: dict, hand_presence_ratio: float,
+        quality: dict | None = None,
     ) -> None:
         language = str(context["language"])
         bundle = self.model_cache.get(language)
@@ -3251,11 +3441,21 @@ class MainWindow(QMainWindow):
             self.evaluation_result.setText("The model is unavailable. This attempt was not saved.")
             return
 
+        model_created_at = str(bundle.get("created_at", "unknown-model"))
+        if context.get("model_created_at", model_created_at) != model_created_at:
+            self.evaluation_result.setText("The model changed during this test. Start a new attempt.")
+            return
+        training_people = {str(person).casefold() for person in bundle.get("people", ())}
+        training_people.update(person.casefold() for person in self.dataset.people(language))
+        if str(context["person_id"]).casefold() in training_people:
+            self.evaluation_result.setText("This person was used for training. This test was not saved.")
+            return
         started = time.perf_counter()
-        prediction = predict_sequence(bundle, sequence)
+        prediction = predict_sequence(
+            bundle, sequence, hand_presence_ratio=hand_presence_ratio
+        )
         processing_ms = (time.perf_counter() - started) * 1000
         expected = str(context["label"])
-        model_created_at = str(bundle.get("created_at", "unknown-model"))
         self.evaluation.save_attempt(
             language=language,
             expected_label=expected,
@@ -3267,6 +3467,10 @@ class MainWindow(QMainWindow):
             model_created_at=model_created_at,
             condition=str(context.get("condition", "Normal indoor")),
             processing_ms=processing_ms,
+            capture_source=str(context.get("capture_source", "live_camera")),
+            video_sha256=str((quality or {}).get("video_sha256", "")),
+            hand_presence_ratio=hand_presence_ratio,
+            capture_failed=bool((quality or {}).get("capture_failed", False)),
         )
 
         pack = self.vocabulary.pack(language)
@@ -3309,6 +3513,10 @@ class MainWindow(QMainWindow):
         competition_sign_allowed = (
             not self.demo_mode_enabled or prediction.label == "help"
         )
+        if not self._record_assistance_event(
+            "camera_accepted" if prediction.accepted and competition_sign_allowed else "camera_rejected"
+        ):
+            return
         if prediction.accepted and competition_sign_allowed:
             sign = pack.sign_for_id(prediction.label)
             self.assistance_session.propose_sign(
@@ -3341,6 +3549,8 @@ class MainWindow(QMainWindow):
         self._render_assistance()
 
     def _use_manual_assistance_sign(self) -> None:
+        if not self._record_assistance_event("manual_selections"):
+            return
         language = self._combo_language(self.assist_language)
         label = str(self.assist_manual_sign.currentData())
         pack = self.vocabulary.pack(language)
@@ -3377,6 +3587,7 @@ class MainWindow(QMainWindow):
             return
         self.assistance_correction_used = True
         self.assistance_feedback = "The suggestion was rejected. Record again or choose a sign manually."
+        self._record_assistance_event("user_rejections")
         self.assistance_result_text = "—"
         self.assistance_result_confidence = None
         self._render_assistance()
@@ -3416,9 +3627,9 @@ class MainWindow(QMainWindow):
         pack = self.vocabulary.pack(self.assistance_session.language)
         selected_option = self.assistance_session.selected_option
         try:
-            turn = self.assistance_session.send_request(pack.locale)
-            if selected_option is None:
+            if selected_option is None or self.assistance_session.stage != AssistanceStage.CONFIRM_REQUEST:
                 raise ValueError("Choose and confirm a request before running the agent")
+            journey_id = self._ensure_assistance_journey()
             action_result = self.reception_agent.execute(
                 selected_option,
                 language=self.assistance_session.language,
@@ -3426,14 +3637,20 @@ class MainWindow(QMainWindow):
                 input_method=self.assistance_input_method,
                 correction_used=self.assistance_correction_used,
                 confidence=self.assistance_result_confidence,
+                journey_id=journey_id,
             )
+            if action_result.task_id is None:
+                self.reception_agent.task_store.end_journey(journey_id)
+            # Move to 'sent' only after the local action was saved successfully.
+            turn = self.assistance_session.send_request(pack.locale)
             self.assistance_session.add_agent_message(
                 action_result.message, pack.locale
             )
-        except ValueError as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             self.assistance_feedback = str(exc)
             self._render_assistance()
             return
+        self.assistance_journey_id = None
         self.assistance_action_results.append(action_result)
         if action_result.task_id is not None:
             self._notify_staff_task(action_result.task_id)
@@ -3821,39 +4038,61 @@ class MainWindow(QMainWindow):
         self.training_worker = TrainingWorker(language, pack, self.dataset)
         self.training_worker.complete.connect(partial(self._training_complete, language))
         self.training_worker.failed.connect(self._training_failed)
+        self.training_worker.finished.connect(self._training_finished)
         self.training_worker.start()
+        self._set_capture_buttons(False)
+
+    def _training_finished(self) -> None:
+        worker = self.training_worker
+        self.training_worker = None
+        if worker is not None:
+            worker.deleteLater()
+        self._set_capture_buttons(True)
 
     def _training_complete(self, language: str, bundle: dict) -> None:
         self.model_cache[language] = bundle
         self.model_load_errors.pop(language, None)
+        if self._closing:
+            return
         self.train_model_button.setEnabled(True)
         self._refresh_all()
         metrics = bundle.get("metrics", {})
-        if metrics.get("validated_on_unseen_people"):
+        if not bundle.get("recognition_enabled", True):
+            message = (
+                "Model saved, but its training checks found no safe confidence threshold. "
+                "Camera suggestions will be rejected. Add varied, correctly labelled examples and retrain. "
+                "Manual assistance is still available."
+            )
+        elif metrics.get("development_evaluated"):
             score = metrics.get("balanced_accuracy", 0.0) * 100
-            message = f"Model trained. Unseen-person balanced accuracy: {score:.1f}%."
+            message = f"Model trained. Training check: {score:.1f}%. Use Final test with new people before making an accuracy claim."
         else:
             message = "Model trained, but it is not validated on unseen people yet."
         QMessageBox.information(self, "Training complete", message)
 
     def _training_failed(self, message: str) -> None:
+        if self._closing:
+            return
         self.train_model_button.setEnabled(True)
         self.training_status.setText("Training failed")
         QMessageBox.critical(self, "Training failed", message)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._closing = True
+        self._reset_assistance_evidence()
         self._disable_computer_control("")
         self.speech.stop()
-        self.camera_worker.stop()
-        if self.training_worker and self.training_worker.isRunning():
-            self.training_worker.wait(3000)
+        camera_stopped = self.camera_worker.stop()
         if self.video_import_worker and self.video_import_worker.isRunning():
             self.video_import_worker.requestInterruption()
-            self.video_import_worker.wait(5000)
         if self.popsign_import_worker and self.popsign_import_worker.isRunning():
             self.popsign_import_worker.requestInterruption()
-            self.popsign_import_worker.wait(5000)
-        for worker in list(self.webhook_workers):
-            if worker.isRunning():
-                worker.wait(5500)
+        workers = [self.training_worker, self.video_import_worker, self.popsign_import_worker, *self.webhook_workers]
+        if not camera_stopped or any(worker is not None and worker.isRunning() for worker in workers):
+            # Never destroy a QThread that is still training, saving or notifying.
+            self.system_status.setText("Finishing current work before closing…")
+            self._set_capture_buttons(False)
+            event.ignore()
+            QTimer.singleShot(200, self.close)
+            return
         event.accept()

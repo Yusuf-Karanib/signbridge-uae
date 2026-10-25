@@ -4,6 +4,8 @@ This guide explains what SignBridge is, why it was designed this way, how every 
 
 For a short operating manual for the latest camera and computer controls, read `CONTROL_GUIDE.md`.
 
+Updated 25 October 2026: retrain the saved ASL model once for the corrected confidence pipeline. Existing samples remain available. **Final test → Import test video** now tests remote recordings without training on them. Staff evidence also counts rejected input and time from the first attempt to the guest's final outcome. The full review is in `REVIEW_2026_10_25.md`.
+
 ## Read these three parts first
 
 1. **What exists now:** the application, improved hand tracking, consented live and short-video training, optional licensed PopSign training-folder import, testing, English text and speech, a controlled hotel-service workflow, a visible agent progress trail, guest outcome confirmation, a persistent Staff desk, a focused competition-demo view, aggregate evidence export, participant deletion, an optional staff webhook and a separate computer-control experiment are built. A personalized ASL model trained only on Yusuf exists but is unreliable and unvalidated.
@@ -152,6 +154,8 @@ The model ranks every class. A result is accepted only when all three rules pass
 
 The default confidence threshold is 82%. When there is enough multi-person training data, SignBridge searches for a threshold that aims for at least 95% correctness among accepted results while still accepting at least 60% of supported attempts.
 
+The search also requires at least 95% rejection of unknown examples. If no tested threshold meets all these targets, camera acceptance is paused until the data is improved and the model retrained. Manual assistance remains available. Scaling and PCA are fitted separately inside every calibration split; the held-back part is not used to fit those transforms.
+
 A confidence score is not proof. It only describes how strongly this model prefers one choice based on the data it learned.
 
 ## 8. The six application screens
@@ -244,12 +248,15 @@ This screen measures the trained model on completely new people.
 - Enter a Tester ID, such as `final-01`.
 - Select what the tester is expected to perform.
 - Select the lighting or background condition.
-- Record the attempt.
+- Confirm permission to test the person or use their clip.
+- Choose **Record attempt** or **Import test video**.
 - The app records whether the model was correct, rejected the input or accepted the wrong result.
 
-The app blocks a Person ID already found in training. It also blocks a final-test ID from later being added to training. This protection depends on honest, consistent IDs; the software cannot know that the same person used two different names.
+The app checks current training IDs and the model's saved training-person list. It also blocks a final-test ID from later being added to training. Exact-file fingerprints prevent importing a training video into Final test under a new ID and prevent counting the same test clip twice for one model. This still depends on honest IDs: the software cannot identify the same person in different clips or recognise every edited copy.
 
 Final-test records never become training data. Reports are tied to the exact model creation time. Retraining creates a new current-model report, while older raw attempts remain stored separately.
+
+An imported test clip saves only its prediction, expected answer, model version, source type, fingerprint and quality numbers. Its video and landmark sequence are not retained. Low hand visibility is rejected in both real use and Final test. A failed camera recording remains visible in the failure count.
 
 ### Computer control
 
@@ -439,6 +446,10 @@ For ASL and each final tester:
 3. Cover normal, dim, bright-background, cluttered-background and different-distance conditions.
 4. Keep every attempt, including failures.
 
+Remote testers can instead send separate, permitted clips with one sign per video. In Final test, select the correct answer and condition before pressing **Import test video**. Use the same ID for the same person. Do not use their clips for training. Imported results measure prerecorded performance; they do not prove live webcam performance. The report separates video and live counts.
+
+If a result from Final test is used to change the model, that evidence has become development feedback. Obtain fresh untouched evidence for the revised model.
+
 ### Passing targets
 
 - At least 85% balanced accuracy across the four supported signs.
@@ -534,6 +545,9 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 - The SignBridge agent blocks speech and actions until the sign and complete request are confirmed.
 - Every supported request maps to a tested action handler.
 - Local tasks persist, can be accepted/replied to/completed and produce basic workflow measurements.
+- Rejected camera attempts, manual fallbacks and journeys ending before a task are included in service evidence. New journeys are timed from the first capture request or manual selection to guest resolution.
+- Failed disk writes do not leave unsaved tasks in memory or announce an unsaved request.
+- Empty or stalled captures release the recording controls; closing waits safely for running workers.
 - Staff can mark delivery, wrong-action and cancelled outcomes. Delivery counts as success only after the guest confirms the request was resolved.
 - The evidence report excludes replies, webhook URLs, camera data and participant identifiers.
 - Participant deletion removes readable matching training and final-test records, removes all trained language models for safe retraining, and warns about files it could not read.
@@ -544,8 +558,7 @@ Do not delete `data/` or `models/` after collecting and training unless you inte
 - Completing a guided session clears its temporary conversation.
 - Both official MediaPipe models load successfully.
 - Windows input commands are checked with a fake system interface during automated tests.
-- The packaged copy loads and passes the same tests.
-- The real launcher starts the application and initializes the camera pipeline.
+- Earlier packaged-copy and live-camera checks are historical. The 25 October review checked the updated working repository and 88 automated tests; existing sharing ZIPs were not rebuilt and the physical camera was not opened during that review.
 
 ### Still unproven
 
@@ -586,7 +599,7 @@ Do not lower the threshold first. Check sign correctness, collect more people, i
 
 ### Results are usually “Not sure”
 
-This can be safer than wrong output. Check framing and timing, then inspect training coverage and per-sign results. Only change thresholds after a proper final test.
+Check framing and timing, then inspect training coverage and per-sign results. Tune thresholds with development data. If Final-test results influence a change, use fresh untouched evidence to assess the revised model. If the app says camera acceptance is paused, its training checks found no threshold that met the targets; improve the examples and retrain.
 
 ### New samples did not improve recognition
 
@@ -660,6 +673,8 @@ The immediate dataset is small and the deadline is short. A smaller model is fas
 ### Can uploaded videos be supported?
 
 Yes. **Train model → Import short video** accepts one short clip for one selected sign and saves its landmarks under that person's ID. It does not translate an arbitrary video or a sentence.
+
+**Final test → Import test video** is separate: it checks a clip from an untouched tester and saves only the result. It does not teach the model. Clips should contain one sign, preferably 2–5 seconds, and must not exceed 12 seconds.
 
 For licensed multi-person ASL data, **Import a PopSign training folder** accepts original PopSign `game/train` clips for `Hello`, `Help` or `Water`. It refuses validation/test folders and does not silently map another word to `Again`.
 

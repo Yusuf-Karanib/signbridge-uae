@@ -24,6 +24,18 @@ class FakeResponse:
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_wrong_settings_shape_does_not_crash_or_overwrite_the_file(self) -> None:
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "settings.json"
+            for text in ("[]", '{"webhook": []}'):
+                path.write_text(text, encoding="utf-8")
+                store = AgentSettingsStore(path)
+                self.assertIsNotNone(store.load_error)
+                self.assertFalse(store.settings.enabled)
+                with self.assertRaises(RuntimeError):
+                    store.save_webhook(enabled=False, url="")
+                self.assertEqual(path.read_text(encoding="utf-8"), text)
+
     def test_webhook_requires_https_except_for_local_testing(self) -> None:
         validate_webhook_url("https://example.com/signbridge-hook")
         validate_webhook_url("http://127.0.0.1:8080/hook")

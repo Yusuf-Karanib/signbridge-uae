@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 from typing import Callable
 
@@ -65,6 +66,8 @@ def extract_training_video(
     The original video is never copied into SignBridge.
     """
     path = validate_video_path(path)
+    with path.open("rb") as source:
+        video_sha256 = hashlib.file_digest(source, "sha256").hexdigest()
     if result_provider is None and not Path(model_path).is_file():
         raise ValueError("The MediaPipe model is missing. Run setup.ps1 again.")
 
@@ -137,6 +140,7 @@ def extract_training_video(
         sequence=resample_sequence(features),
         quality={
             "source": "imported_video",
+            "video_sha256": video_sha256,
             "processed_frames": len(features),
             "hand_frames": hand_frames,
             "hand_presence_ratio": ratio,

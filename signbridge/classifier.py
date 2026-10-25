@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.decomposition import PCA
 from sklearn.metrics import balanced_accuracy_score, confusion_matrix, precision_score, recall_score
+from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
@@ -18,6 +19,7 @@ from signbridge.config import (
     DEFAULT_CONFIDENCE_THRESHOLD,
     DEFAULT_MARGIN_THRESHOLD,
     MIN_SAMPLES_PER_CLASS,
+    MIN_HAND_PRESENCE_RATIO,
     TRAINED_MODELS_DIR,
     UNKNOWN_LABEL,
 )
@@ -36,24 +38,31 @@ class Prediction:
 
 
 def _build_pipeline(sample_count: int, feature_count: int) -> Pipeline:
-    components = max(2, min(48, sample_count - 2, feature_count))
-    return Pipeline(
+    # The scaler and PCA must be fitted again inside EACH calibration fold.
+    # Fitting them outside the calibrator leaks held-back data into calibration.
+    components = max(1, min(48, sample_count // 2 - 1, feature_count))
+    estimator = Pipeline(
         steps=[
             ("scale", StandardScaler()),
             # Keep stronger movement patterns stronger; whitening can amplify camera jitter.
             ("pca", PCA(n_components=components, whiten=False, random_state=42)),
             (
+                "svc",
+                SVC(
+                    kernel="rbf", C=6.0, gamma="scale",
+                    class_weight="balanced", random_state=42,
+                ),
+            ),
+        ]
+    )
+    return Pipeline(
+        steps=[
+            (
                 "classifier",
                 CalibratedClassifierCV(
-                    estimator=SVC(
-                        kernel="rbf",
-                        C=6.0,
-                        gamma="scale",
-                        class_weight="balanced",
-                        random_state=42,
-                    ),
+                    estimator=estimator,
                     method="sigmoid",
-                    cv=2,
+                    cv=StratifiedKFold(n_splits=2, shuffle=True, random_state=42),
                     ensemble=False,
                 ),
             ),
@@ -64,7 +73,7 @@ def _build_pipeline(sample_count: int, feature_count: int) -> Pipeline:
 def _records_to_arrays(records: list[SampleRecord]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     x = np.stack([sequence_to_model_vector(record.sequence) for record in records])
     y = np.asarray([record.label for record in records])
-    groups = np.asarray([record.person_id for record in records])
+    groups = np.asarray([record.person_id.casefold() for record in records])
     return x, y, groups
 
 
@@ -79,6 +88,8 @@ def _evaluate_by_unseen_person(
         return (
             {
                 "validated_on_unseen_people": False,
+                "development_evaluated": False,
+                "independent_final_test": False,
                 "reason": "At least 3 different people are required for an unseen-person test.",
                 "people": len(unique_people),
             },
@@ -93,8 +104,8 @@ def _evaluate_by_unseen_person(
     for held_out in unique_people:
         train_mask = groups != held_out
         test_mask = groups == held_out
-        train_classes = set(y[train_mask].tolist())
-        if not set(required_labels).issubset(train_classes):
+        # Calibration needs at least two training samples of every class.
+        if any(np.count_nonzero(y[train_mask] == label) < 2 for label in required_labels):
             continue
         fold = _build_pipeline(int(train_mask.sum()), x.shape[1])
         fold.fit(x[train_mask], y[train_mask])
@@ -111,6 +122,8 @@ def _evaluate_by_unseen_person(
         return (
             {
                 "validated_on_unseen_people": False,
+                "development_evaluated": False,
+                "independent_final_test": False,
                 "reason": "Each training fold needs examples of every sign from other people.",
                 "people": len(unique_people),
             },
@@ -139,9 +152,13 @@ def _evaluate_by_unseen_person(
     )
     matrix = confusion_matrix(actual_array, predicted, labels=required_labels)
     metrics = {
-        "validated_on_unseen_people": True,
+        "validated_on_unseen_people": False,
+        "development_evaluated": True,
+        "evaluation_role": "development_cross_validation",
+        "independent_final_test": False,
         "people": len(unique_people),
         "tested_people": len(tested_people),
+        "skipped_people": len(unique_people) - len(tested_people),
         "balanced_accuracy": float(balanced),
         "per_sign_recall": per_sign,
         "raw_unknown_top1": raw_unknown_top1,
@@ -164,7 +181,7 @@ def _choose_threshold(
     top_scores = probabilities[np.arange(len(probabilities)), order[:, 0]]
     margins = top_scores - probabilities[np.arange(len(probabilities)), order[:, 1]]
 
-    for threshold in np.arange(0.55, 0.96, 0.01):
+    for threshold in np.arange(0.55, 1.0, 0.01):
         accepted = (
             (top_labels != UNKNOWN_LABEL)
             & (top_scores >= threshold)
@@ -176,9 +193,13 @@ def _choose_threshold(
             precision = precision_score(
                 actual_array[accepted], top_labels[accepted], average="micro", zero_division=0
             )
-            if precision >= 0.95 and coverage >= 0.60:
+            unknown = actual_array == UNKNOWN_LABEL
+            unknown_rejection = np.mean(~accepted[unknown]) if unknown.any() else 0.0
+            if precision >= 0.95 and coverage >= 0.60 and unknown_rejection >= 0.95:
                 return float(round(threshold, 2))
-    return DEFAULT_CONFIDENCE_THRESHOLD
+    # No tested operating point met the target. Do not silently fall back to a
+    # lower threshold that already failed. 1.0 disables camera acceptance.
+    return 1.0
 
 
 def _add_rejection_metrics(
@@ -208,6 +229,8 @@ def _add_rejection_metrics(
         & (top_scores >= threshold)
         & (margins >= DEFAULT_MARGIN_THRESHOLD)
     )
+    if threshold >= 1.0:
+        accepted[:] = False
     supported = actual_array != UNKNOWN_LABEL
     unknown = actual_array == UNKNOWN_LABEL
     metrics.update(
@@ -269,7 +292,7 @@ def train_language_model(
     )
     created_at = datetime.now(timezone.utc).isoformat()
     bundle = {
-        "version": 1,
+        "version": 2,
         "language": language,
         "created_at": created_at,
         "feature_version": FEATURE_VERSION,
@@ -277,7 +300,14 @@ def train_language_model(
         "classes": classes,
         "counts": counts,
         "people": sorted(set(groups.tolist())),
+        "training_video_hashes": sorted(store.video_hashes(language)),
         "confidence_threshold": threshold,
+        "recognition_enabled": threshold < 1.0,
+        "threshold_status": (
+            "development_target_met" if validation_probabilities is not None and threshold < 1.0
+            else "no_safe_threshold" if threshold >= 1.0
+            else "default_unvalidated"
+        ),
         "margin_threshold": DEFAULT_MARGIN_THRESHOLD,
         "metrics": metrics,
         "pipeline": pipeline,
@@ -302,6 +332,8 @@ def load_model(
     if not path.exists():
         return None
     bundle = joblib.load(path)
+    if bundle.get("version", 1) < 2:
+        raise ValueError("Confidence training has improved. Retrain this model; your saved samples are kept.")
     if bundle.get("feature_version") != FEATURE_VERSION:
         raise ValueError("The trained model uses an older landmark format. Retrain it.")
     if expected_labels is not None and bundle.get("labels") != expected_labels:
@@ -322,7 +354,9 @@ def delete_language_model(
     return removed
 
 
-def predict_sequence(bundle: dict, sequence: np.ndarray) -> Prediction:
+def predict_sequence(
+    bundle: dict, sequence: np.ndarray, *, hand_presence_ratio: float | None = None
+) -> Prediction:
     vector = sequence_to_model_vector(sequence).reshape(1, -1)
     probabilities = bundle["pipeline"].predict_proba(vector)[0]
     classes = list(bundle["pipeline"].named_steps["classifier"].classes_)
@@ -332,10 +366,16 @@ def predict_sequence(bundle: dict, sequence: np.ndarray) -> Prediction:
     second_score = alternatives[1][1] if len(alternatives) > 1 else 0.0
     margin = top_score - second_score
     accepted = (
-        top_label != UNKNOWN_LABEL
+        bool(bundle.get("recognition_enabled", True))
+        and top_label != UNKNOWN_LABEL
         and top_score >= float(bundle.get("confidence_threshold", DEFAULT_CONFIDENCE_THRESHOLD))
         and margin >= float(bundle.get("margin_threshold", DEFAULT_MARGIN_THRESHOLD))
     )
+    if hand_presence_ratio is not None:
+        accepted = bool(
+            accepted and np.isfinite(hand_presence_ratio)
+            and MIN_HAND_PRESENCE_RATIO <= hand_presence_ratio <= 1.0
+        )
     return Prediction(
         label=top_label,
         confidence=top_score,

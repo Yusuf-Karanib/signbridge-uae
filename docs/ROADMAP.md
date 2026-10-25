@@ -36,7 +36,7 @@ The software is not yet a validated ASL recognizer. The local ASL model is perso
 - Ending the signer interaction clears temporary conversation text. Staff independently records the persistent task's real outcome.
 - An optional, administrator-configured HTTPS webhook can notify a real staff channel. It does not create bookings or request interpreters.
 
-The next build is not a larger vocabulary. Add attempt-level evidence, complete workflow timing and remote Final-test video import. Then test whether real users can finish the supported hotel interaction without a false action.
+The 25 October review added attempt-level evidence, first-attempt-to-resolution timing and remote Final-test video import. The next step is retraining and testing whether real users can finish the supported hotel interaction without a false action. See `REVIEW_2026_10_25.md` for the changes and remaining evidence gaps.
 
 ## Now: first real service connection
 
@@ -47,11 +47,11 @@ The next build is not a larger vocabulary. Add attempt-level evidence, complete 
 - Record success, failure and cancellation without saving sign video.
 - Keep a manual staff fallback whenever a service is unavailable.
 
-This is the smallest version that can be trained and tested honestly before the event.
+This is the current bounded prototype to train and validate before a real pilot.
 
 ## Now: ASL training-video import
 
-The Train model screen accepts a short clip containing exactly one selected sign. It also accepts one official PopSign `game/train` sign folder for `Hello`, `Help` or `Water`, limited to 30 varied signers' clips per import. It extracts the same landmark sequence as live capture and does not copy raw video into SignBridge. It does not translate arbitrary videos or sentences. `Again`, negative examples, final-test video import and continuous translation remain separate work.
+The Train model screen accepts a short clip containing exactly one selected sign. It also accepts one official PopSign `game/train` sign folder for `Hello`, `Help` or `Water`, limited to 30 varied signers' clips per import. It extracts the same landmark sequence as live capture and does not copy raw video into SignBridge. Final test now has its own video import, which saves results only and blocks exact clips already used for training. `Again` and negative examples still need correct examples. Continuous translation remains future work.
 
 ## Later: online meetings
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from signbridge.config import EVALUATIONS_DIR, UNKNOWN_LABEL
+from signbridge.config import EVALUATIONS_DIR, UNKNOWN_LABEL, MIN_HAND_PRESENCE_RATIO
 from signbridge.dataset import DatasetStore
 
 
@@ -25,6 +25,10 @@ class EvaluationAttempt:
     condition: str
     processing_ms: float
     captured_at: str
+    capture_source: str = "live_camera"
+    video_sha256: str = ""
+    hand_presence_ratio: float | None = None
+    capture_failed: bool = False
 
 
 class EvaluationStore:
@@ -48,13 +52,17 @@ class EvaluationStore:
         model_created_at: str,
         condition: str,
         processing_ms: float,
+        capture_source: str = "live_camera",
+        video_sha256: str = "",
+        hand_presence_ratio: float | None = None,
+        capture_failed: bool = False,
     ) -> Path:
         language = DatasetStore.safe_component(language)
         expected_label = DatasetStore.safe_component(expected_label)
         person_id = DatasetStore.safe_component(person_id)
         captured_at = datetime.now(timezone.utc)
         payload = {
-            "version": 1,
+            "version": 2,
             "language": language,
             "expected_label": expected_label,
             "person_id": person_id,
@@ -66,6 +74,10 @@ class EvaluationStore:
             "condition": str(condition).strip() or "Normal indoor",
             "processing_ms": float(processing_ms),
             "captured_at": captured_at.isoformat(),
+            "capture_source": str(capture_source),
+            "video_sha256": str(video_sha256),
+            "hand_presence_ratio": hand_presence_ratio,
+            "capture_failed": bool(capture_failed),
         }
         destination = self.directory / language
         destination.mkdir(parents=True, exist_ok=True)
@@ -91,6 +103,8 @@ class EvaluationStore:
         for path in sorted(root.glob("*.json")):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(payload, dict):
+                    continue
                 if model_created_at and payload.get("model_created_at") != model_created_at:
                     continue
                 attempts.append(
@@ -106,6 +120,10 @@ class EvaluationStore:
                         condition=str(payload.get("condition", "Normal indoor")),
                         processing_ms=float(payload.get("processing_ms", 0.0)),
                         captured_at=str(payload["captured_at"]),
+                        capture_source=str(payload.get("capture_source", "live_camera")),
+                        video_sha256=str(payload.get("video_sha256", "")),
+                        hand_presence_ratio=payload.get("hand_presence_ratio"),
+                        capture_failed=bool(payload.get("capture_failed", False)),
                     )
                 )
             except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
@@ -114,6 +132,12 @@ class EvaluationStore:
 
     def people(self, language: str) -> set[str]:
         return {attempt.person_id for attempt in self.load_attempts(language)}
+
+    def video_hashes(self, language: str, model_created_at: str | None = None) -> set[str]:
+        return {
+            attempt.video_sha256 for attempt in self.load_attempts(language, model_created_at)
+            if attempt.video_sha256
+        }
 
     def delete_person(self, person_id: str, language: str | None = None) -> int:
         """Permanently delete one person's final-test attempts."""
@@ -241,6 +265,14 @@ class EvaluationStore:
         return {
             "model_created_at": model_created_at,
             "attempts": len(attempts),
+            "live_attempts": sum(attempt.capture_source == "live_camera" for attempt in attempts),
+            "video_attempts": sum(attempt.capture_source == "imported_video" for attempt in attempts),
+            "low_visibility_attempts": sum(
+                attempt.hand_presence_ratio is not None
+                and attempt.hand_presence_ratio < MIN_HAND_PRESENCE_RATIO
+                for attempt in attempts
+            ),
+            "capture_failures": sum(attempt.capture_failed for attempt in attempts),
             "people": len({attempt.person_id for attempt in attempts}),
             "correct_attempts": overall_correct,
             "balanced_accuracy": balanced_accuracy,

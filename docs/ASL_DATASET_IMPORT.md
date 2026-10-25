@@ -56,4 +56,8 @@ The downloaded videos still exist in the folder where you extracted them. SignBr
 
 ## What still counts as a real test
 
-Training on different people is useful, but it is not the final score. Use **Final test** with people or official test clips that were never used during training. Final-test video import is not built yet, so the current app requires those people to test live.
+Training on different people is useful, but it is not the final score. Use **Final test** with people or properly licensed test clips that were never used during training. Enter the expected sign and consistent Tester ID, confirm testing permission, then choose **Import test video**.
+
+The app saves the result and exact-file fingerprint, not the video or its landmarks. It blocks training people, exact clips used for training and repeated clips within one model's final report. The PopSign importer also checks final-test fingerprints. Re-encoded copies and one person under two different IDs still need human review; file checking is not automatic identity recognition.
+
+Only one sign per clip is supported. This feature does not translate conversations. Keep development experiments separate from the untouched final evidence used in a pitch.

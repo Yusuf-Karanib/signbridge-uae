@@ -124,6 +124,8 @@ def sequence_to_model_vector(sequence: np.ndarray) -> np.ndarray:
         raise ValueError(
             f"Expected sequence {(SEQUENCE_LENGTH, FEATURE_DIM)}, received {sequence.shape}"
         )
+    if not np.isfinite(sequence).all():
+        raise ValueError("Landmark samples must contain only finite numbers. Record this sample again.")
     velocity = np.diff(sequence, axis=0, prepend=sequence[:1])
     velocity = np.clip(velocity, -4.0, 4.0)
     combined = np.concatenate((sequence, velocity), axis=1)
